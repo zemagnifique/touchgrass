@@ -35,7 +35,8 @@ jobs:
           git push || echo "No changes to push"
 
       - name: Build
-        run: pnpm build
+        run: |
+          node scripts/build.js
         
       - name: Add .nojekyll file
         run: touch docs/.nojekyll
