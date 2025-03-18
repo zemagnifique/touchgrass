@@ -48,13 +48,12 @@ let isMuted = false;
 let soundsLoaded = false;
 let audioFiles = [];
 
-// Replace import.meta.env.BASE_URL with a function to get base URL
 function getBaseUrl() {
-    // In development
-    if (window.location.port === '5173' || window.location.port === '4173') {
+    // Check if we're on the custom domain
+    if (window.location.hostname === 'touchgrass.vip') {
         return '/';
     }
-    // In production (GitHub Pages)
+    // Otherwise use the repository path
     return '/touchgrass/';
 }
 

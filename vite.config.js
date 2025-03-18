@@ -1,8 +1,19 @@
 import { defineConfig } from 'vite'
 
+// Determine if we're using a custom domain from the CNAME file
+import fs from 'fs'
+import path from 'path'
+
+const hasCustomDomain = () => {
+    try {
+        return fs.existsSync(path.join(process.cwd(), 'public', 'CNAME'))
+    } catch {
+        return false
+    }
+}
+
 export default defineConfig({
-    // Use conditional base URL for custom domain
-    base: process.env.CUSTOM_DOMAIN ? '/' : '/touchgrass/',
+    base: hasCustomDomain() ? '/' : '/touchgrass/',
     build: {
         outDir: 'docs',
         assetsDir: 'assets',
