@@ -246,6 +246,7 @@ export class FluffyGrass {
 		if (this.camera.position.y < groundLevel) {
 		this.camera.position.y = groundLevel;
 		}
+		const voices = window.speechSynthesis.getVoices();
 	}
 
 	private setupTextures() {
