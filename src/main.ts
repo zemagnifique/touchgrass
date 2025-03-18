@@ -7,6 +7,13 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { MeshSurfaceSampler } from "three/addons/math/MeshSurfaceSampler.js";
 import { GrassMaterial } from "./GrassMaterial";
 
+// Define a more complete interface for Stats
+interface StatsWithDOM {
+	dom: HTMLElement;
+	init(renderer: THREE.WebGLRenderer): void;
+	update(): void;
+}
+
 export class FluffyGrass {
 	// # Need access to these outside the comp
 	private loadingManager: THREE.LoadingManager;
@@ -17,7 +24,7 @@ export class FluffyGrass {
 	private renderer: THREE.WebGLRenderer;
 	private scene: THREE.Scene;
 	private canvas: HTMLCanvasElement;
-	private stats: Stats;
+	private stats: StatsWithDOM;
 	private orbitControls: OrbitControls;
 	// private gui: dat.GUI;
 	// private sceneGUI: dat.GUI;
@@ -51,7 +58,7 @@ export class FluffyGrass {
 		// this.canvas.style.pointerEvents = 'all';
 		this.stats = new Stats({
 			minimal: true,
-		});
+		}) as unknown as StatsWithDOM;
 
 		this.camera = new THREE.PerspectiveCamera(
 			75,
