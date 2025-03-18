@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import Stats from "stats-gl";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import * as dat from "dat.gui";
+// import * as dat from "dat.gui";
 
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { MeshSurfaceSampler } from "three/addons/math/MeshSurfaceSampler.js";
@@ -19,8 +19,8 @@ export class FluffyGrass {
 	private canvas: HTMLCanvasElement;
 	private stats: Stats;
 	private orbitControls: OrbitControls;
-	private gui: dat.GUI;
-	private sceneGUI: dat.GUI;
+	// private gui: dat.GUI;
+	// private sceneGUI: dat.GUI;
 	private sceneProps = {
 		fogColor: "#eeeeee",
 		terrainColor: "#5e875e",
@@ -43,7 +43,7 @@ export class FluffyGrass {
 		this.loadingManager = new THREE.LoadingManager();
 		this.textureLoader = new THREE.TextureLoader(this.loadingManager);
 
-		this.gui = new dat.GUI();
+		// this.gui = new dat.GUI();
 
 		this.gltfLoader = new GLTFLoader(this.loadingManager);
 
@@ -83,7 +83,8 @@ export class FluffyGrass {
 		this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 		this.scene.frustumCulled = true;
 
-		this.orbitControls = new OrbitControls(this.camera, canvas);
+		this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
+		this.orbitControls.enabled = true;
 		this.orbitControls.autoRotate = false;
 		this.orbitControls.autoRotateSpeed = -0.5;
 		this.orbitControls.enableDamping = true;
@@ -264,7 +265,7 @@ export class FluffyGrass {
 	}
 
 	private setupGUI() {
-		this.gui.close();
+		// this.gui.close();
 		// const guiContainer = this.gui.domElement.parentElement as HTMLDivElement;
 		// guiContainer.style.zIndex = "9999";
 		// guiContainer.style.position = "fixed";

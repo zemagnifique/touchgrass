@@ -44,6 +44,8 @@ let intervalId = null;
 let startTime = null;
 let congratulationShown = false;
 let isMuted = false;
+let soundsLoaded = false;
+let audioFiles = [];
 
 function createMuteButton() {
     const button = document.createElement('button');
@@ -62,6 +64,8 @@ function createMuteButton() {
     `;
     button.textContent = 'Mute';
     
+    let muteTimeout;
+    
     button.addEventListener('click', async () => {
         isMuted = !isMuted;
         button.textContent = isMuted ? 'Unmute' : 'Mute';
@@ -72,25 +76,78 @@ function createMuteButton() {
                 clearTimeout(intervalId);
                 intervalId = null;
             }
-        } else {
-            // Special unmute message
-            await speak("Did you just mute me? Really? Just leave if you don't want to hear me!");
-            // Continue regular announcements
-            setTimeout(announceNext, 2000);
+            
+            // Automatically unmute after 2 seconds
+            clearTimeout(muteTimeout);
+            muteTimeout = setTimeout(async () => {
+                isMuted = false;
+                button.textContent = 'Mute';
+                // Special unmute message
+                await speak("Did you just mute me? Really? Just leave if you don't want to hear me!");
+                // Continue regular announcements
+                setTimeout(announceNext, 2000);
+               
+            }, 2000);
         }
     });
     
     document.body.appendChild(button);
 }
 
-function speak(text) {
+async function loadSounds() {
+    try {
+        const response = await fetch('/sounds/manifest.json');
+        if (!response.ok) throw new Error('No manifest found');
+        
+        const manifest = await response.json();
+        audioFiles = manifest.files.map(filename => {
+            const audio = new Audio(`/sounds/${filename}`);
+            return audio;
+        });
+        
+        // Wait for all audio files to load
+        await Promise.all(audioFiles.map(audio => 
+            new Promise((resolve, reject) => {
+                audio.addEventListener('canplaythrough', resolve, { once: true });
+                audio.addEventListener('error', reject, { once: true });
+                // Start loading the audio
+                audio.load();
+            })
+        ));
+        
+        soundsLoaded = true;
+        return true;
+    } catch (error) {
+        console.log('Falling back to text-to-speech:', error);
+        return false;
+    }
+}
+
+async function speak(text, index = currentIndex) {
     if (isMuted) return Promise.resolve();
+
+    if (soundsLoaded && audioFiles[index]) {
+        return new Promise(resolve => {
+            const audio = audioFiles[index];
+            audio.currentTime = 0;
+            audio.onended = resolve;
+            audio.play().catch(err => {
+                console.log('Audio playback failed, falling back to TTS:', err);
+                // Fall back to TTS if audio playback fails
+                speakTTS(text).then(resolve);
+            });
+        });
+    } else {
+        return speakTTS(text);
+    }
+}
+
+function speakTTS(text) {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = 'en-GB';
     utterance.pitch = 1.2;
     utterance.rate = 1.2;
 
-    // Try to set a British voice if available
     const voices = window.speechSynthesis.getVoices();
     const britishVoice = voices.find(voice => 
         voice.name.includes("Google UK English Male") || voice.name.includes("Daniel") || voice.lang.includes('en-GB') && voice.gender === 'male'
@@ -99,7 +156,6 @@ function speak(text) {
         utterance.voice = britishVoice;
     }
 
-    // Return a promise that resolves when speech ends
     return new Promise(resolve => {
         utterance.onend = resolve;
         window.speechSynthesis.speak(utterance);
@@ -148,6 +204,9 @@ function createCongratulationOverlay() {
 async function startAnnouncements() {
     document.removeEventListener('mousedown', startAnnouncements);
     createMuteButton();
+    
+    // Try to load sounds first
+    await loadSounds();
     
     if (intervalId) {
         clearInterval(intervalId);
