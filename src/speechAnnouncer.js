@@ -43,6 +43,7 @@ let currentIndex = 0;
 let intervalId = null;
 let startTime = null;
 let congratulationShown = false;
+let currentAudio = null;
 let isMuted = false;
 let soundsLoaded = false;
 let audioFiles = [];
@@ -70,23 +71,25 @@ function createMuteButton() {
         isMuted = !isMuted;
         button.textContent = isMuted ? 'Unmute' : 'Mute';
         
-        if (isMuted) {
-            window.speechSynthesis.cancel();
-            if (intervalId) {
-                clearTimeout(intervalId);
-                intervalId = null;
-            }
+        if (isMuted && currentAudio) {
+            currentAudio.pause();
             
             // Automatically unmute after 2 seconds
             clearTimeout(muteTimeout);
             muteTimeout = setTimeout(async () => {
                 isMuted = false;
                 button.textContent = 'Mute';
-                // Special unmute message
-                await speak("Did you just mute me? Really? Just leave if you don't want to hear me!");
-                // Continue regular announcements
-                setTimeout(announceNext, 2000);
-               
+                
+                // Play unmute sound and wait for it to finish
+                const unmuteAudio = new Audio('/sounds/mute.mp3');
+                unmuteAudio.addEventListener('ended', () => {
+                    // Resume main speech after unmute sound finishes
+                    if (currentAudio) {
+                        currentAudio.play();
+                    }
+                }, { once: true });
+                
+                await unmuteAudio.play();
             }, 2000);
         }
     });
@@ -100,25 +103,33 @@ async function loadSounds() {
         if (!response.ok) throw new Error('No manifest found');
         
         const manifest = await response.json();
-        audioFiles = manifest.files.map(filename => {
-            const audio = new Audio(`/sounds/${filename}`);
-            return audio;
+        
+        // Load main speech audio
+        const audio = new Audio();
+        
+        const loadPromise = new Promise((resolve, reject) => {
+            audio.addEventListener('canplaythrough', () => resolve(audio), { once: true });
+            audio.addEventListener('error', (e) => {
+                console.error('Error loading audio file:', audio.error);
+                reject(new Error(`Failed to load speech: ${audio.error?.message || 'Unknown error'}`));
+            }, { once: true });
         });
-        
-        // Wait for all audio files to load
-        await Promise.all(audioFiles.map(audio => 
-            new Promise((resolve, reject) => {
-                audio.addEventListener('canplaythrough', resolve, { once: true });
-                audio.addEventListener('error', reject, { once: true });
-                // Start loading the audio
-                audio.load();
-            })
-        ));
-        
-        soundsLoaded = true;
-        return true;
+
+        audio.src = '/sounds/speech.mp3';
+        audio.load();
+
+        try {
+            currentAudio = await loadPromise;
+            soundsLoaded = true;
+            console.log('Speech audio loaded successfully');
+            return true;
+        } catch (error) {
+            console.error('Failed to load speech audio:', error);
+            return false;
+        }
     } catch (error) {
-        console.log('Falling back to text-to-speech:', error);
+        console.error('Error loading sounds:', error);
+        soundsLoaded = false;
         return false;
     }
 }
@@ -127,15 +138,25 @@ async function speak(text, index = currentIndex) {
     if (isMuted) return Promise.resolve();
 
     if (soundsLoaded && audioFiles[index]) {
-        return new Promise(resolve => {
+        return new Promise((resolve, reject) => {
             const audio = audioFiles[index];
-            audio.currentTime = 0;
-            audio.onended = resolve;
-            audio.play().catch(err => {
-                console.log('Audio playback failed, falling back to TTS:', err);
+            
+            const errorHandler = (e) => {
+                console.error('Audio playback failed:', e);
+                audio.removeEventListener('error', errorHandler);
                 // Fall back to TTS if audio playback fails
-                speakTTS(text).then(resolve);
-            });
+                speakTTS(text).then(resolve).catch(reject);
+            };
+
+            audio.addEventListener('error', errorHandler, { once: true });
+            audio.addEventListener('ended', resolve, { once: true });
+            
+            try {
+                audio.currentTime = 0;
+                audio.play().catch(errorHandler);
+            } catch (err) {
+                errorHandler(err);
+            }
         });
     } else {
         return speakTTS(text);
@@ -162,7 +183,7 @@ function speakTTS(text) {
     });
 }
 
-function createCongratulationOverlay() {
+async function createCongratulationOverlay() {
     const overlay = document.createElement('div');
     overlay.style.cssText = `
         position: fixed;
@@ -190,15 +211,24 @@ function createCongratulationOverlay() {
     overlay.appendChild(image);
     document.body.appendChild(overlay);
 
+    // Stop the main speech audio
+    if (currentAudio) {
+        currentAudio.pause();
+    }
+
+    // Play success sound
+    try {
+        const successAudio = new Audio('/sounds/success.mp3');
+        await successAudio.play();
+    } catch (error) {
+        console.error('Failed to play success audio:', error);
+    }
+
     // Trigger animations
     setTimeout(() => {
         overlay.style.opacity = '1';
         image.style.transform = 'scale(1)';
     }, 100);
-
-    // Add congratulation sound
-    const congratsText = "Well done! You've successfully wasted 1 hour of your life staring at virtual grass. Your parents must be so proud!";
-    // speak(congratsText);
 }
 
 async function startAnnouncements() {
@@ -208,33 +238,26 @@ async function startAnnouncements() {
     // Try to load sounds first
     await loadSounds();
     
-    if (intervalId) {
-        clearInterval(intervalId);
-    }
-    
-    currentIndex = 0;
-    startTime = Date.now();
-    congratulationShown = false;
-    
-    await announceNext();
-}
-
-async function announceNext() {
-    if (!congratulationShown && Date.now() - startTime >= 60 * 60 * 1000) {
-        // 5 minutes have passed
-        clearTimeout(intervalId);
-        congratulationShown = true;
-        createCongratulationOverlay();
-        return;
-    }
-
-    if(currentIndex >= announcements.length) {
-        currentIndex = announcements.length - 1;
-    }
-    if (currentIndex < announcements.length) {
-        await speak(announcements[currentIndex]);
-        currentIndex++;
-        intervalId = setTimeout(announceNext, 3000);
+    if (soundsLoaded && currentAudio) {
+        startTime = Date.now();
+        currentAudio.play();
+        
+        // Set up congratulation check
+        const checkCongratulation = setInterval(async () => {
+            if (!congratulationShown && Date.now() - startTime >= 60 * 60 * 1000) {
+                // 60 minutes have passed
+                clearInterval(checkCongratulation);
+                congratulationShown = true;
+                await createCongratulationOverlay();
+            }
+        }, 1000); // Check every second
+        
+        // Clean up interval when audio ends
+        currentAudio.addEventListener('ended', () => {
+            clearInterval(checkCongratulation);
+        });
+    } else {
+        console.error('Failed to start audio playback');
     }
 }
 
