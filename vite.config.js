@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite'
 
 export default defineConfig({
-    base: '/touchgrass/',  // Replace with your repository name
+    // Use conditional base URL for custom domain
+    base: process.env.CUSTOM_DOMAIN ? '/' : '/touchgrass/',
     build: {
         outDir: 'docs',
         assetsDir: 'assets',

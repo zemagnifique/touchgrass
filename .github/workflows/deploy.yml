@@ -25,6 +25,8 @@ jobs:
         run: pnpm install
 
       - name: Build
+        env:
+          CUSTOM_DOMAIN: 'touchgrass.vip'  # Set your custom domain here
         run: pnpm build
         
       - name: Add .nojekyll file
