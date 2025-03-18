@@ -3,6 +3,14 @@ import { defineConfig } from 'vite'
 export default defineConfig({
     base: '/touchgrass/',  // Replace with your repository name
     build: {
-        outDir: 'docs'  // GitHub Pages will serve from /docs or /root
+        outDir: 'docs',
+        assetsDir: 'assets',
+        rollupOptions: {
+            output: {
+                assetFileNames: 'assets/[name]-[hash][extname]',
+                chunkFileNames: 'assets/[name]-[hash].js',
+                entryFileNames: 'assets/[name]-[hash].js',
+            }
+        }
     }
 }) 

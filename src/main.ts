@@ -209,7 +209,7 @@ export class FluffyGrass {
 			this.scene.add(gltf.scene);
 
 			// load grass model
-			this.gltfLoader.load("/grassLODs.glb", (gltf) => {
+			this.gltfLoader.load("./grassLODs.glb", (gltf) => {
 				gltf.scene.traverse((child) => {
 					if (child instanceof THREE.Mesh) {
 						if (child.name.includes("LOD00")) {
@@ -258,12 +258,12 @@ export class FluffyGrass {
 	}
 
 	private setupTextures() {
-		this.textures.perlinNoise = this.textureLoader.load("/perlinnoise.webp");
+		this.textures.perlinNoise = this.textureLoader.load("./perlinnoise.webp");
 
 		this.textures.perlinNoise.wrapS = this.textures.perlinNoise.wrapT =
 			THREE.RepeatWrapping;
 
-		this.textures.grassAlpha = this.textureLoader.load("/grass.jpeg");
+		this.textures.grassAlpha = this.textureLoader.load("./grass.jpeg");
 
 		this.grassMaterial.setupTextures(
 			this.textures.grassAlpha,
