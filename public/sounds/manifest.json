@@ -1,8 +1,7 @@
 {
     "files": [
         "speech.mp3",
-        "02_thats_the_whole_thing.mp3",
-        "03_still_here.mp3",
-        // ... list all your audio files in order matching the announcements array
+        "speech.mp3",
+        "mute.mp3"
     ]
 } 
