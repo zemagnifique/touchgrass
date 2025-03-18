@@ -18,22 +18,16 @@ export default defineConfig({
         outDir: 'docs',
         assetsDir: 'assets',
         rollupOptions: {
-            input: {
-                main: './index.html'
-            },
             output: {
                 entryFileNames: 'assets/[name].js',
                 chunkFileNames: 'assets/[name]-[hash].js',
                 assetFileNames: (assetInfo) => {
-                    const info = assetInfo.name.split('.');
-                    const ext = info.pop();
-                    const name = info.join('.');
-                    
-                    if (name === 'main' || name === 'style') {
-                        return `assets/${name}.${ext}`;
-                    }
-                    
-                    return `assets/[name]-[hash][extname]`;
+                    const info = assetInfo.name.split('.')
+                    const ext = info.pop()
+                    const name = info.join('.')
+                    return name === 'style' || name === 'main'
+                        ? `assets/${name}.${ext}`
+                        : `assets/[name]-[hash][extname]`
                 }
             }
         }
