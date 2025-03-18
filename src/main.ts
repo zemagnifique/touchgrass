@@ -183,11 +183,11 @@ export class FluffyGrass {
 	}
 
 	private loadModels() {
-		this.sceneGUI
-			.addColor(this.sceneProps, "terrainColor")
-			.onChange((value) => {
-				this.terrainMat.color.set(value);
-			});
+		// this.sceneGUI
+			// .addColor(this.sceneProps, "terrainColor")
+			// .onChange((value) => {
+				// this.terrainMat.color.set(value);
+			// });
 		this.gltfLoader.load("/island.glb", (gltf) => {
 			let terrainMesh: THREE.Mesh;
 			gltf.scene.traverse((child) => {
@@ -265,29 +265,29 @@ export class FluffyGrass {
 
 	private setupGUI() {
 		this.gui.close();
-		const guiContainer = this.gui.domElement.parentElement as HTMLDivElement;
-		guiContainer.style.zIndex = "9999";
-		guiContainer.style.position = "fixed";
-		guiContainer.style.top = "0";
-		guiContainer.style.left = "0";
-		guiContainer.style.right = "auto";
-		guiContainer.style.display = "block";
+		// const guiContainer = this.gui.domElement.parentElement as HTMLDivElement;
+		// guiContainer.style.zIndex = "9999";
+		// guiContainer.style.position = "fixed";
+		// guiContainer.style.top = "0";
+		// guiContainer.style.left = "0";
+		// guiContainer.style.right = "auto";
+		// guiContainer.style.display = "block";
 
-		this.sceneGUI = this.gui.addFolder("Scene Properties");
-		this.sceneGUI.add(this.orbitControls, "autoRotate").name("Auto Rotate");
-		this.sceneGUI
-			.add(this.sceneProps, "fogDensity", 0, 0.05, 0.000001)
-			.onChange((value) => {
-				(this.scene.fog as THREE.FogExp2).density = value;
-			});
-		this.sceneGUI.addColor(this.sceneProps, "fogColor").onChange((value) => {
-			this.scene.fog?.color.set(value);
-			this.scene.background = new THREE.Color(value);
-		});
+		// this.sceneGUI = this.gui.addFolder("Scene Properties");
+		// this.sceneGUI.add(this.orbitControls, "autoRotate").name("Auto Rotate");
+		// this.sceneGUI
+			// .add(this.sceneProps, "fogDensity", 0, 0.05, 0.000001)
+			// .onChange((value) => {
+				// (this.scene.fog as THREE.FogExp2).density = value;
+			// });
+		// this.sceneGUI.addColor(this.sceneProps, "fogColor").onChange((value) => {
+			// this.scene.fog?.color.set(value);
+			// this.scene.background = new THREE.Color(value);
+		// });
 
-		this.grassMaterial.setupGUI(this.sceneGUI);
+		// this.grassMaterial.setupGUI(this.sceneGUI);
 
-		this.sceneGUI.open();
+		// this.sceneGUI.open();
 	}
 
 	private setupStats() {
