@@ -1,9 +1,8 @@
 import { defineConfig } from 'vite'
-
-// Determine if we're using a custom domain from the CNAME file
 import fs from 'fs'
 import path from 'path'
 
+// Determine if we're using a custom domain from the CNAME file
 const hasCustomDomain = () => {
     try {
         return fs.existsSync(path.join(process.cwd(), 'public', 'CNAME'))
@@ -18,18 +17,29 @@ export default defineConfig({
         outDir: 'docs',
         assetsDir: 'assets',
         rollupOptions: {
+            input: {
+                main: './index.html'
+            },
             output: {
+                // Use predictable names for main bundles
                 entryFileNames: 'assets/[name].js',
-                chunkFileNames: 'assets/[name]-[hash].js',
+                chunkFileNames: 'assets/[name].[hash].js',
                 assetFileNames: (assetInfo) => {
-                    const info = assetInfo.name.split('.')
-                    const ext = info.pop()
-                    const name = info.join('.')
-                    return name === 'style' || name === 'main'
-                        ? `assets/${name}.${ext}`
-                        : `assets/[name]-[hash][extname]`
+                    if (assetInfo.name === 'style.css') {
+                        return 'assets/style.css';
+                    }
+                    if (assetInfo.name === 'index.css') {
+                        return 'assets/main.css';
+                    }
+                    return 'assets/[name].[hash][extname]';
                 }
             }
+        }
+    },
+    css: {
+        // Ensure CSS files are generated with predictable names
+        modules: {
+            generateScopedName: '[name]__[local]__[hash:base64:5]'
         }
     }
 }) 
