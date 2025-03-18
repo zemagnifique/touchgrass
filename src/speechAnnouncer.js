@@ -81,7 +81,7 @@ function createMuteButton() {
                 button.textContent = 'Mute';
                 
                 // Play unmute sound and wait for it to finish
-                const unmuteAudio = new Audio('/sounds/mute.mp3');
+                const unmuteAudio = new Audio('./sounds/mute.mp3');
                 unmuteAudio.addEventListener('ended', () => {
                     // Resume main speech after unmute sound finishes
                     if (currentAudio) {
@@ -97,9 +97,39 @@ function createMuteButton() {
     document.body.appendChild(button);
 }
 
+function createTwitterLink() {
+    const link = document.createElement('a');
+    link.href = 'https://twitter.com/thebenammou';
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        color: white;
+        text-decoration: none;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+        z-index: 1000;
+    `;
+    link.textContent = '@thebenammou';
+    
+    link.addEventListener('mouseenter', () => {
+        link.style.opacity = '1';
+    });
+    
+    link.addEventListener('mouseleave', () => {
+        link.style.opacity = '0.7';
+    });
+    
+    document.body.appendChild(link);
+}
+
 async function loadSounds() {
     try {
-        const response = await fetch('/sounds/manifest.json');
+        const response = await fetch('./sounds/manifest.json');
         if (!response.ok) throw new Error('No manifest found');
         
         const manifest = await response.json();
@@ -115,7 +145,7 @@ async function loadSounds() {
             }, { once: true });
         });
 
-        audio.src = '/sounds/speech.mp3';
+        audio.src = './sounds/speech.mp3';
         audio.load();
 
         try {
@@ -201,7 +231,7 @@ async function createCongratulationOverlay() {
     `;
 
     const image = document.createElement('img');
-    image.src = '/gw.png';
+    image.src = './gw.png';
     image.style.cssText = `
         max-width: 80%;
         max-height: 80%;
@@ -218,7 +248,7 @@ async function createCongratulationOverlay() {
 
     // Play success sound
     try {
-        const successAudio = new Audio('/sounds/success.mp3');
+        const successAudio = new Audio('./sounds/success.mp3');
         await successAudio.play();
     } catch (error) {
         console.error('Failed to play success audio:', error);
@@ -234,6 +264,7 @@ async function createCongratulationOverlay() {
 async function startAnnouncements() {
     document.removeEventListener('mousedown', startAnnouncements);
     createMuteButton();
+    createTwitterLink();
     
     // Try to load sounds first
     await loadSounds();
