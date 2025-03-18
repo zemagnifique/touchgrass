@@ -191,12 +191,10 @@ export class FluffyGrass {
 	}
 
 	private loadModels() {
-		// this.sceneGUI
-			// .addColor(this.sceneProps, "terrainColor")
-			// .onChange((value) => {
-				// this.terrainMat.color.set(value);
-			// });
-		this.gltfLoader.load("/island.glb", (gltf) => {
+		const baseUrl = import.meta.env.BASE_URL;
+
+		// Load island model
+		this.gltfLoader.load(`${baseUrl}island.glb`, (gltf) => {
 			let terrainMesh: THREE.Mesh;
 			gltf.scene.traverse((child) => {
 				if (child instanceof THREE.Mesh) {
@@ -208,8 +206,8 @@ export class FluffyGrass {
 			});
 			this.scene.add(gltf.scene);
 
-			// load grass model
-			this.gltfLoader.load("./grassLODs.glb", (gltf) => {
+			// Load grass model after island is loaded
+			this.gltfLoader.load(`${baseUrl}grassLODs.glb`, (gltf) => {
 				gltf.scene.traverse((child) => {
 					if (child instanceof THREE.Mesh) {
 						if (child.name.includes("LOD00")) {
@@ -222,21 +220,6 @@ export class FluffyGrass {
 				this.addGrass(terrainMesh, this.grassGeometry);
 			});
 		});
-
-		// const material = new THREE.MeshPhongMaterial({ color: 0x333333 });
-
-		// this.gltfLoader.load("/fluffy_grass_text.glb", (gltf) => {
-			// gltf.scene.traverse((child) => {
-				// if (child instanceof THREE.Mesh) {
-					// child.material = material;
-					// child.geometry.scale(3, 3, 3);
-					// child.position.y += 0.5;
-					// child.castShadow = true;
-					// child.receiveShadow = true;
-				// }
-			// });
-			// this.scene.add(gltf.scene);
-		// });
 	}
 
 	public render() {
@@ -258,12 +241,13 @@ export class FluffyGrass {
 	}
 
 	private setupTextures() {
-		this.textures.perlinNoise = this.textureLoader.load("./perlinnoise.webp");
+		const baseUrl = import.meta.env.BASE_URL;
+		this.textures.perlinNoise = this.textureLoader.load(`${baseUrl}perlinnoise.webp`);
 
 		this.textures.perlinNoise.wrapS = this.textures.perlinNoise.wrapT =
 			THREE.RepeatWrapping;
 
-		this.textures.grassAlpha = this.textureLoader.load("./grass.jpeg");
+		this.textures.grassAlpha = this.textureLoader.load(`${baseUrl}grass.jpeg`);
 
 		this.grassMaterial.setupTextures(
 			this.textures.grassAlpha,

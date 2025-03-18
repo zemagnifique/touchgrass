@@ -48,6 +48,18 @@ let isMuted = false;
 let soundsLoaded = false;
 let audioFiles = [];
 
+// Replace import.meta.env.BASE_URL with a function to get base URL
+function getBaseUrl() {
+    // In development
+    if (window.location.port === '5173' || window.location.port === '4173') {
+        return '/';
+    }
+    // In production (GitHub Pages)
+    return '/touchgrass/';
+}
+
+const baseUrl = getBaseUrl();
+
 function createMuteButton() {
     const button = document.createElement('button');
     button.style.cssText = `
@@ -81,7 +93,7 @@ function createMuteButton() {
                 button.textContent = 'Mute';
                 
                 // Play unmute sound and wait for it to finish
-                const unmuteAudio = new Audio('./sounds/mute.mp3');
+                const unmuteAudio = new Audio(new URL('sounds/mute.mp3', window.location.origin + baseUrl).href);
                 unmuteAudio.addEventListener('ended', () => {
                     // Resume main speech after unmute sound finishes
                     if (currentAudio) {
@@ -129,8 +141,13 @@ function createTwitterLink() {
 
 async function loadSounds() {
     try {
-        const response = await fetch('./sounds/manifest.json');
-        if (!response.ok) throw new Error('No manifest found');
+        const manifestUrl = new URL('sounds/manifest.json', window.location.origin + baseUrl);
+        
+        const response = await fetch(manifestUrl);
+        if (!response.ok) {
+            console.error(`Failed to load manifest: ${response.status}`);
+            return false;
+        }
         
         const manifest = await response.json();
         
@@ -145,7 +162,7 @@ async function loadSounds() {
             }, { once: true });
         });
 
-        audio.src = './sounds/speech.mp3';
+        audio.src = new URL('sounds/speech.mp3', window.location.origin + baseUrl).href;
         audio.load();
 
         try {
@@ -231,7 +248,7 @@ async function createCongratulationOverlay() {
     `;
 
     const image = document.createElement('img');
-    image.src = './gw.png';
+    image.src = `${window.location.origin + baseUrl}gw.png`;
     image.style.cssText = `
         max-width: 80%;
         max-height: 80%;
@@ -248,7 +265,7 @@ async function createCongratulationOverlay() {
 
     // Play success sound
     try {
-        const successAudio = new Audio('./sounds/success.mp3');
+        const successAudio = new Audio(new URL('sounds/success.mp3', window.location.origin + baseUrl).href);
         await successAudio.play();
     } catch (error) {
         console.error('Failed to play success audio:', error);
