@@ -51,6 +51,125 @@ let audioFiles = [];
 let muteAudio = null;
 let successAudio = null;
 
+// Touch tracking
+let touchCount = 0;
+let touchAudios = [];
+let playedTouchAudios = new Set(); // Keep track of touch audios already played
+
+// Load touch count from localStorage if available
+function loadTouchState() {
+    try {
+        const savedState = localStorage.getItem('touchgrass_state');
+        if (savedState) {
+            const state = JSON.parse(savedState);
+            touchCount = state.touchCount || 0;
+            playedTouchAudios = new Set(state.playedTouchAudios || []);
+            console.log(`Loaded touch state: count=${touchCount}, played=${Array.from(playedTouchAudios).join(',')}`);
+        }
+    } catch (error) {
+        console.error('Failed to load touch state from localStorage:', error);
+    }
+}
+
+// Save touch state to localStorage
+function saveTouchState() {
+    try {
+        const state = {
+            touchCount: touchCount,
+            playedTouchAudios: Array.from(playedTouchAudios)
+        };
+        localStorage.setItem('touchgrass_state', JSON.stringify(state));
+    } catch (error) {
+        console.error('Failed to save touch state to localStorage:', error);
+    }
+}
+
+// Function to handle a touch event
+async function handleTouch() {
+    touchCount++;
+    console.log(`Touch count: ${touchCount}`);
+    saveTouchState();
+    
+    // Play a touch audio if available
+    await playTouchAudio();
+}
+
+// Function to play touch audio based on touch count
+async function playTouchAudio() {
+    if (!soundsLoaded || touchAudios.length === 0 || isMuted) return;
+    
+    try {
+        // Find the appropriate audio file to play
+        // We want the highest index that's ≤ touchCount and hasn't been played before
+        let audioIndex = -1;
+        let highestMatchingIndex = -1;
+        
+        // First try to find exact match for touch count
+        if (touchCount < touchAudios.length && touchAudios[touchCount] && !playedTouchAudios.has(touchCount)) {
+            audioIndex = touchCount;
+        } else {
+            // If no exact match, find the highest available index that hasn't been played
+            for (let i = 0; i < Math.min(touchCount, touchAudios.length); i++) {
+                if (touchAudios[i] && !playedTouchAudios.has(i) && i > highestMatchingIndex) {
+                    highestMatchingIndex = i;
+                }
+            }
+            
+            if (highestMatchingIndex >= 0) {
+                audioIndex = highestMatchingIndex;
+            }
+        }
+        
+        // If no suitable audio found, return
+        if (audioIndex === -1 || !touchAudios[audioIndex]) {
+            console.log('No suitable touch audio found for touch count:', touchCount);
+            return;
+        }
+        
+        console.log(`Playing touch audio at index ${audioIndex} for touch count ${touchCount}`);
+        
+        // Pause any current audio
+        if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+        }
+        
+        // Clear any scheduled next audio
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+        
+        // Play the touch audio
+        const touchAudio = touchAudios[audioIndex];
+        touchAudio.currentTime = 0;
+        
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                touchAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            touchAudio.addEventListener('ended', onEnded);
+        });
+        
+        await touchAudio.play();
+        
+        // Mark this audio as played
+        playedTouchAudios.add(audioIndex);
+        saveTouchState();
+        
+        // Wait for the audio to finish
+        await playPromise;
+        
+        // Resume the regular audio sequence
+        playNextAudio();
+        
+    } catch (error) {
+        console.error('Failed to play touch audio:', error);
+        // Resume the regular audio sequence if touch audio failed
+        playNextAudio();
+    }
+}
+
 function getBaseUrl() {
     // Always return root path
     return '/';
@@ -169,6 +288,9 @@ function createTwitterLink() {
 
 async function loadSounds() {
     try {
+        // Load saved touch state
+        loadTouchState();
+        
         const manifestUrl = new URL('sounds/manifest.json', window.location.origin + baseUrl);
         
         const response = await fetch(manifestUrl);
@@ -213,6 +335,36 @@ async function loadSounds() {
             } catch (error) {
                 console.error(`Failed to load audio file ${file}:`, error);
             }
+        }
+        
+        // Load touch audio files if available
+        if (manifest.touch && manifest.touch.length > 0) {
+            touchAudios = [];
+            for (let i = 0; i < manifest.touch.length; i++) {
+                try {
+                    const file = manifest.touch[i];
+                    const audio = new Audio();
+                    audio.src = new URL(`sounds/touch/${file}`, window.location.origin + baseUrl).href;
+                    
+                    const loadPromise = new Promise((resolve, reject) => {
+                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load touch audio ${file}`)), { once: true });
+                        
+                        // Add a timeout in case the audio never loads
+                        setTimeout(() => reject(new Error(`Timeout loading touch audio ${file}`)), 10000);
+                    });
+                    
+                    audio.load();
+                    await loadPromise;
+                    touchAudios[i] = audio; // Use explicit index assignment
+                    console.log(`Loaded touch audio ${i}: ${file}`);
+                } catch (error) {
+                    console.error(`Failed to load touch audio file at index ${i}:`, error);
+                    // Add a placeholder to maintain correct indexing
+                    touchAudios[i] = null;
+                }
+            }
+            console.log(`Loaded ${touchAudios.filter(a => a !== null).length}/${touchAudios.length} touch audio files`);
         }
         
         // Load mute audio if available
@@ -429,6 +581,17 @@ async function startAnnouncements() {
     
     if (success) {
         startTime = Date.now();
+        
+        // Set up touch event listener for grass interaction
+        const canvas = document.getElementById('canvas');
+        if (canvas) {
+            canvas.addEventListener('click', handleTouch);
+            console.log('Added touch handler to canvas');
+        } else {
+            // Fallback to document if canvas not found
+            document.addEventListener('click', handleTouch);
+            console.log('Canvas not found, added touch handler to document');
+        }
         
         // Start the first audio immediately
         await playNextAudio();
