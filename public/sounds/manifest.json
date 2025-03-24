@@ -1,5 +1,5 @@
 {
-    "files": [
+    "default": [
         "speech.mp3",
         "chunk_000.mp3",
         "chunk_001.mp3",
