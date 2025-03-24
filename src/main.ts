@@ -343,6 +343,12 @@ export class FluffyGrass {
 	}
 }
 
-const canvas = document.querySelector("#canvas") as HTMLCanvasElement;
-const app = new FluffyGrass(canvas);
-app.render();
+// Create the FluffyGrass instance
+const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+const fluffyGrass = new FluffyGrass(canvas);
+
+// Make it accessible from the window object
+(window as any).fluffyGrass = fluffyGrass;
+
+// Start rendering
+fluffyGrass.render();

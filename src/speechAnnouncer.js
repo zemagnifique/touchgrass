@@ -47,51 +47,319 @@ let congratulationShown = false;
 let currentAudio = null;
 let isMuted = false;
 let soundsLoaded = false;
-let audioFiles = [];
+
+// Audio collections
+let defaultAudios = [];
+let touchAudios = [];
+let introAudios = [];
+let reloadAudios = [];
 let muteAudio = null;
 let successAudio = null;
 
-// Touch tracking
+// State tracking
 let touchCount = 0;
-let touchAudios = [];
 let playedTouchAudios = new Set(); // Keep track of touch audios already played
+let defaultAudioIndex = 0;  // Keep track of which default audio to play next
+let introAudioIndex = 0;    // Keep track of which intro audio to play next
+let hasUserTouchedGrass = false;  // Flag to know if user has interacted with the grass
+let isFirstLoad = true;     // Flag to identify first load vs reload
+let lastAudioEndTime = 0;   // Track when the last audio ended
+let audioPlaying = false;   // Track if an audio is currently playing
 
-// Load touch count from localStorage if available
-function loadTouchState() {
+// Load state from localStorage if available
+function loadState() {
     try {
         const savedState = localStorage.getItem('touchgrass_state');
         if (savedState) {
             const state = JSON.parse(savedState);
             touchCount = state.touchCount || 0;
             playedTouchAudios = new Set(state.playedTouchAudios || []);
-            console.log(`Loaded touch state: count=${touchCount}, played=${Array.from(playedTouchAudios).join(',')}`);
+            defaultAudioIndex = state.defaultAudioIndex || 0;
+            introAudioIndex = state.introAudioIndex || 0;
+            hasUserTouchedGrass = state.hasUserTouchedGrass || false;
+            isFirstLoad = false; // If we're loading state, this isn't the first load
+            
+            console.log(`Loaded state: touchCount=${touchCount}, defaultIndex=${defaultAudioIndex}, introIndex=${introAudioIndex}, hasUserTouchedGrass=${hasUserTouchedGrass}`);
+            console.log(`Played touch audios: ${Array.from(playedTouchAudios).join(',')}`);
         }
     } catch (error) {
-        console.error('Failed to load touch state from localStorage:', error);
+        console.error('Failed to load state from localStorage:', error);
     }
 }
 
-// Save touch state to localStorage
-function saveTouchState() {
+// Save state to localStorage
+function saveState() {
     try {
         const state = {
             touchCount: touchCount,
-            playedTouchAudios: Array.from(playedTouchAudios)
+            playedTouchAudios: Array.from(playedTouchAudios),
+            defaultAudioIndex: defaultAudioIndex,
+            introAudioIndex: introAudioIndex,
+            hasUserTouchedGrass: hasUserTouchedGrass
         };
         localStorage.setItem('touchgrass_state', JSON.stringify(state));
     } catch (error) {
-        console.error('Failed to save touch state to localStorage:', error);
+        console.error('Failed to save state to localStorage:', error);
     }
 }
 
 // Function to handle a touch event
 async function handleTouch() {
+    // If this is the first touch, mark that user has touched grass
+    if (!hasUserTouchedGrass) {
+        hasUserTouchedGrass = true;
+        saveState();
+    }
+    
     touchCount++;
     console.log(`Touch count: ${touchCount}`);
-    saveTouchState();
+    saveState();
     
     // Play a touch audio if available
     await playTouchAudio();
+}
+
+// Function to play the next appropriate audio based on state
+async function playNextAppropriateAudio() {
+    if (isMuted) return;
+    
+    const now = Date.now();
+    
+    // If audio is already playing, don't do anything
+    if (audioPlaying) return;
+    
+    // If it's the first load and user hasn't touched grass yet, play intro audio
+    if (!hasUserTouchedGrass && introAudios.length > 0) {
+        await playIntroAudio();
+    } 
+    // If it's been more than 3 seconds since last audio and user has touched grass, play a default audio
+    else if (hasUserTouchedGrass && now - lastAudioEndTime > 3000 && defaultAudios.length > 0) {
+        await playDefaultAudio();
+    }
+}
+
+// Function to play an intro audio
+async function playIntroAudio() {
+    if (!soundsLoaded || introAudios.length === 0 || isMuted) return;
+    
+    try {
+        // Stop any currently playing audio
+        if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+        }
+        
+        // Clear any scheduled next audio
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+        
+        audioPlaying = true;
+        
+        // Get the next intro audio
+        currentAudio = introAudios[introAudioIndex];
+        currentAudio.currentTime = 0;
+        
+        // Set up the event listener for ended event before playing
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                currentAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            currentAudio.addEventListener('ended', onEnded);
+        });
+        
+        console.log(`Playing intro audio ${introAudioIndex}`);
+        await currentAudio.play();
+        
+        // Move to the next intro audio in the sequence
+        introAudioIndex = (introAudioIndex + 1) % introAudios.length;
+        saveState();
+        
+        // Wait for the audio to finish
+        await playPromise;
+        
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // If this was the last intro audio, move camera and trigger touch
+        if (introAudioIndex === 0) {
+            // Get the camera and controls from the window object
+            const camera = window.fluffyGrass?.camera;
+            const controls = window.fluffyGrass?.orbitControls;
+            
+            if (camera && controls) {
+                // Disable controls temporarily
+                controls.enabled = false;
+                
+                // Store initial position
+                const startPosition = camera.position.clone();
+                const startTarget = controls.target.clone();
+                
+                // Calculate end position (closer to grass)
+                const endPosition = new THREE.Vector3(-5, 8, -5);
+                const endTarget = new THREE.Vector3(0, 0, 0);
+                
+                // Animation duration in milliseconds
+                const duration = 3000;
+                const startTime = Date.now();
+                
+                // Animate camera movement
+                const animateCamera = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    // Smooth easing function
+                    const easeProgress = progress < 0.5
+                        ? 2 * progress * progress
+                        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+                    
+                    // Interpolate position and target
+                    camera.position.lerpVectors(startPosition, endPosition, easeProgress);
+                    controls.target.lerpVectors(startTarget, endTarget, easeProgress);
+                    
+                    // Update controls
+                    controls.update();
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(animateCamera);
+                    } else {
+                        // Re-enable controls
+                        controls.enabled = true;
+                        
+                        // Trigger touch event after camera movement
+                        setTimeout(() => {
+                            handleTouch();
+                        }, 500);
+                    }
+                };
+                
+                animateCamera();
+            }
+        } else {
+            // Schedule the next audio check
+            nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+        }
+        
+    } catch (error) {
+        console.error('Failed to play intro audio:', error);
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+    }
+}
+
+// Function to play a default audio
+async function playDefaultAudio() {
+    if (!soundsLoaded || defaultAudios.length === 0 || isMuted) return;
+    
+    try {
+        // Stop any currently playing audio
+        if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+        }
+        
+        // Clear any scheduled next audio
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+        
+        audioPlaying = true;
+        
+        // Get the next default audio
+        currentAudio = defaultAudios[defaultAudioIndex];
+        currentAudio.currentTime = 0;
+        
+        // Set up the event listener for ended event before playing
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                currentAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            currentAudio.addEventListener('ended', onEnded);
+        });
+        
+        console.log(`Playing default audio ${defaultAudioIndex}`);
+        await currentAudio.play();
+        
+        // Move to the next default audio in the sequence
+        defaultAudioIndex = (defaultAudioIndex + 1) % defaultAudios.length;
+        saveState();
+        
+        // Wait for the audio to finish
+        await playPromise;
+        
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+        
+    } catch (error) {
+        console.error('Failed to play default audio:', error);
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+    }
+}
+
+// Function to play a reload audio
+async function playReloadAudio() {
+    if (!soundsLoaded || reloadAudios.length === 0 || isMuted) return;
+    
+    try {
+        // Stop any currently playing audio
+        if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+        }
+        
+        // Clear any scheduled next audio
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+        
+        audioPlaying = true;
+        
+        // Get a random reload audio
+        const reloadIndex = Math.floor(Math.random() * reloadAudios.length);
+        currentAudio = reloadAudios[reloadIndex];
+        currentAudio.currentTime = 0;
+        
+        // Set up the event listener for ended event before playing
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                currentAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            currentAudio.addEventListener('ended', onEnded);
+        });
+        
+        console.log(`Playing reload audio ${reloadIndex}`);
+        await currentAudio.play();
+        
+        // Wait for the audio to finish
+        await playPromise;
+        
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+        
+    } catch (error) {
+        console.error('Failed to play reload audio:', error);
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+    }
 }
 
 // Function to play touch audio based on touch count
@@ -128,7 +396,7 @@ async function playTouchAudio() {
         
         console.log(`Playing touch audio at index ${audioIndex} for touch count ${touchCount}`);
         
-        // Pause any current audio
+        // Stop any currently playing audio
         if (currentAudio && !currentAudio.paused) {
             currentAudio.pause();
         }
@@ -139,34 +407,42 @@ async function playTouchAudio() {
             nextAudioTimeoutId = null;
         }
         
+        audioPlaying = true;
+        
         // Play the touch audio
-        const touchAudio = touchAudios[audioIndex];
-        touchAudio.currentTime = 0;
+        currentAudio = touchAudios[audioIndex];
+        currentAudio.currentTime = 0;
         
         const playPromise = new Promise(resolve => {
             const onEnded = () => {
-                touchAudio.removeEventListener('ended', onEnded);
+                currentAudio.removeEventListener('ended', onEnded);
                 resolve();
             };
-            touchAudio.addEventListener('ended', onEnded);
+            currentAudio.addEventListener('ended', onEnded);
         });
         
-        await touchAudio.play();
+        await currentAudio.play();
         
         // Mark this audio as played
         playedTouchAudios.add(audioIndex);
-        saveTouchState();
+        saveState();
         
         // Wait for the audio to finish
         await playPromise;
         
-        // Resume the regular audio sequence
-        playNextAudio();
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
         
     } catch (error) {
         console.error('Failed to play touch audio:', error);
-        // Resume the regular audio sequence if touch audio failed
-        playNextAudio();
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
     }
 }
 
@@ -239,15 +515,15 @@ function createMuteButton() {
                         await unmutePromise;
                         
                         // Resume playback after unmute sound finishes
-                        playNextAudio();
+                        playNextAppropriateAudio();
                     } else {
                         // If no mute audio, just resume playback
-                        playNextAudio();
+                        playNextAppropriateAudio();
                     }
                 } catch (error) {
                     console.error('Failed to play unmute sound:', error);
                     // Still try to resume playback
-                    playNextAudio();
+                    playNextAppropriateAudio();
                 }
             }, 2000);
         }
@@ -288,8 +564,8 @@ function createTwitterLink() {
 
 async function loadSounds() {
     try {
-        // Load saved touch state
-        loadTouchState();
+        // Load saved state
+        loadState();
         
         const manifestUrl = new URL('sounds/manifest.json', window.location.origin + baseUrl);
         
@@ -302,39 +578,58 @@ async function loadSounds() {
         const manifest = await response.json();
         console.log('Manifest loaded:', manifest);
         
-        // Check if manifest has expected format
-        if (!manifest.default) {
-            console.error('Manifest is missing "default" audio list');
-            return false;
+        // Load intro audio files if available
+        if (manifest.intro && manifest.intro.length > 0) {
+            introAudios = [];
+            for (let i = 0; i < manifest.intro.length; i++) {
+                try {
+                    const file = manifest.intro[i];
+                    const audio = new Audio();
+                    audio.src = new URL(`sounds/intro/${file}`, window.location.origin + baseUrl).href;
+                    
+                    const loadPromise = new Promise((resolve, reject) => {
+                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load intro audio ${file}`)), { once: true });
+                        setTimeout(() => reject(new Error(`Timeout loading intro audio ${file}`)), 10000);
+                    });
+                    
+                    audio.load();
+                    await loadPromise;
+                    introAudios[i] = audio;
+                    console.log(`Loaded intro audio ${i}: ${file}`);
+                } catch (error) {
+                    console.error(`Failed to load intro audio file at index ${i}:`, error);
+                    introAudios[i] = null;
+                }
+            }
+            console.log(`Loaded ${introAudios.filter(a => a !== null).length}/${introAudios.length} intro audio files`);
         }
         
-        // Load all audio chunks from the manifest
-        const defaultFiles = manifest.default || [];
-        console.log(`Found ${defaultFiles.length} audio files in manifest.default`);
-        
-        // Preload all default audio files
-        audioFiles = [];
-        for (const file of defaultFiles) {
-            try {
-                const audio = new Audio();
-                audio.src = new URL(`sounds/default/${file}`, window.location.origin + baseUrl).href;
-                
-                // Create a promise to track when the audio can play
-                const loadPromise = new Promise((resolve, reject) => {
-                    audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                    audio.addEventListener('error', (e) => reject(new Error(`Failed to load ${file}`)), { once: true });
-                });
-                
-                // Load the audio
-                audio.load();
-                
-                // Wait for it to be ready
-                await loadPromise;
-                audioFiles.push(audio);
-                console.log(`Loaded audio: ${file}`);
-            } catch (error) {
-                console.error(`Failed to load audio file ${file}:`, error);
+        // Load default audio files if available
+        if (manifest.default && manifest.default.length > 0) {
+            defaultAudios = [];
+            for (let i = 0; i < manifest.default.length; i++) {
+                try {
+                    const file = manifest.default[i];
+                    const audio = new Audio();
+                    audio.src = new URL(`sounds/default/${file}`, window.location.origin + baseUrl).href;
+                    
+                    const loadPromise = new Promise((resolve, reject) => {
+                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load default audio ${file}`)), { once: true });
+                        setTimeout(() => reject(new Error(`Timeout loading default audio ${file}`)), 10000);
+                    });
+                    
+                    audio.load();
+                    await loadPromise;
+                    defaultAudios[i] = audio;
+                    console.log(`Loaded default audio ${i}: ${file}`);
+                } catch (error) {
+                    console.error(`Failed to load default audio file at index ${i}:`, error);
+                    defaultAudios[i] = null;
+                }
             }
+            console.log(`Loaded ${defaultAudios.filter(a => a !== null).length}/${defaultAudios.length} default audio files`);
         }
         
         // Load touch audio files if available
@@ -349,22 +644,46 @@ async function loadSounds() {
                     const loadPromise = new Promise((resolve, reject) => {
                         audio.addEventListener('canplaythrough', () => resolve(), { once: true });
                         audio.addEventListener('error', (e) => reject(new Error(`Failed to load touch audio ${file}`)), { once: true });
-                        
-                        // Add a timeout in case the audio never loads
                         setTimeout(() => reject(new Error(`Timeout loading touch audio ${file}`)), 10000);
                     });
                     
                     audio.load();
                     await loadPromise;
-                    touchAudios[i] = audio; // Use explicit index assignment
+                    touchAudios[i] = audio;
                     console.log(`Loaded touch audio ${i}: ${file}`);
                 } catch (error) {
                     console.error(`Failed to load touch audio file at index ${i}:`, error);
-                    // Add a placeholder to maintain correct indexing
                     touchAudios[i] = null;
                 }
             }
             console.log(`Loaded ${touchAudios.filter(a => a !== null).length}/${touchAudios.length} touch audio files`);
+        }
+        
+        // Load reload audio files if available
+        if (manifest.reload && manifest.reload.length > 0) {
+            reloadAudios = [];
+            for (let i = 0; i < manifest.reload.length; i++) {
+                try {
+                    const file = manifest.reload[i];
+                    const audio = new Audio();
+                    audio.src = new URL(`sounds/reload/${file}`, window.location.origin + baseUrl).href;
+                    
+                    const loadPromise = new Promise((resolve, reject) => {
+                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load reload audio ${file}`)), { once: true });
+                        setTimeout(() => reject(new Error(`Timeout loading reload audio ${file}`)), 10000);
+                    });
+                    
+                    audio.load();
+                    await loadPromise;
+                    reloadAudios[i] = audio;
+                    console.log(`Loaded reload audio ${i}: ${file}`);
+                } catch (error) {
+                    console.error(`Failed to load reload audio file at index ${i}:`, error);
+                    reloadAudios[i] = null;
+                }
+            }
+            console.log(`Loaded ${reloadAudios.filter(a => a !== null).length}/${reloadAudios.length} reload audio files`);
         }
         
         // Load mute audio if available
@@ -407,8 +726,7 @@ async function loadSounds() {
             }
         }
         
-        soundsLoaded = audioFiles.length > 0;
-        console.log(`${audioFiles.length} audio files loaded successfully`);
+        soundsLoaded = introAudios.length > 0 || defaultAudios.length > 0 || touchAudios.length > 0;
         return soundsLoaded;
     } catch (error) {
         console.error('Error loading sounds:', error);
@@ -417,81 +735,78 @@ async function loadSounds() {
     }
 }
 
-async function playNextAudio() {
-    if (!soundsLoaded || audioFiles.length === 0 || isMuted) return;
+async function startAnnouncements() {
+    // Remove the mousedown event listener since we want to start automatically
+    document.removeEventListener('mousedown', startAnnouncements);
     
-    try {
-        if (currentAudio && !currentAudio.paused) {
-            currentAudio.pause();
+    // Create UI elements immediately
+    createMuteButton();
+    createTwitterLink();
+    
+    // Try to load sounds first
+    const success = await loadSounds();
+    
+    if (success) {
+        startTime = Date.now();
+        lastAudioEndTime = startTime;
+        
+        // Set up touch event listener for grass interaction
+        const canvas = document.getElementById('canvas');
+        if (canvas) {
+            canvas.addEventListener('click', handleTouch);
+            console.log('Added touch handler to canvas');
+        } else {
+            // Fallback to document if canvas not found
+            document.addEventListener('click', handleTouch);
+            console.log('Canvas not found, added touch handler to document');
         }
         
-        currentAudio = audioFiles[currentIndex];
-        currentAudio.currentTime = 0;
-        
-        // Set up the event listener for ended event before playing
-        const playPromise = new Promise(resolve => {
-            const onEnded = () => {
-                currentAudio.removeEventListener('ended', onEnded);
-                resolve();
-            };
-            currentAudio.addEventListener('ended', onEnded);
-        });
-        
-        await currentAudio.play();
-        
-        // Move to the next audio in the sequence
-        currentIndex = (currentIndex + 1) % audioFiles.length;
-        
-        // Wait for the current audio to finish
-        await playPromise;
-        
-        // Clear any existing timeout
-        if (nextAudioTimeoutId) {
-            clearTimeout(nextAudioTimeoutId);
+        // Check if this is a reload or first load
+        if (!isFirstLoad && reloadAudios.length > 0) {
+            // Play reload audio first
+            await playReloadAudio();
+        } else {
+            // Start intro audio immediately
+            await playNextAppropriateAudio();
         }
         
-        // Schedule the next audio after 3 seconds
-        nextAudioTimeoutId = setTimeout(playNextAudio, 3000);
-        
-    } catch (error) {
-        console.error('Failed to play audio:', error);
-        // Fall back to TTS
-        try {
-            await speakTTS(announcements[currentIndex % announcements.length]);
-            currentIndex = (currentIndex + 1) % announcements.length;
-            
-            // Clear any existing timeout
-            if (nextAudioTimeoutId) {
-                clearTimeout(nextAudioTimeoutId);
+        // Set up congratulation check
+        const checkCongratulation = setInterval(async () => {
+            if (!congratulationShown && Date.now() - startTime >= 60 * 60 * 1000) {
+                // 60 minutes have passed
+                clearInterval(checkCongratulation);
+                congratulationShown = true;
+                await createCongratulationOverlay();
             }
-            
-            // Schedule the next audio after 3 seconds
-            nextAudioTimeoutId = setTimeout(playNextAudio, 3000);
-        } catch (ttsError) {
-            console.error('TTS fallback also failed:', ttsError);
-        }
+        }, 1000); // Check every second
+    } else {
+        console.error('Failed to load audio files');
     }
 }
 
-function speakTTS(text) {
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-GB';
-    utterance.pitch = 1.2;
-    utterance.rate = 1.2;
-
-    const voices = window.speechSynthesis.getVoices();
-    const britishVoice = voices.find(voice => 
-        voice.name.includes("Google UK English Male") || voice.name.includes("Daniel") || voice.lang.includes('en-GB') && voice.gender === 'male'
-    );
-    if (britishVoice) {
-        utterance.voice = britishVoice;
+function stopAnnouncements() {
+    if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
     }
-
-    return new Promise(resolve => {
-        utterance.onend = resolve;
-        window.speechSynthesis.speak(utterance);
-    });
+    
+    if (nextAudioTimeoutId) {
+        clearTimeout(nextAudioTimeoutId);
+        nextAudioTimeoutId = null;
+    }
+    
+    if (currentAudio) {
+        currentAudio.pause();
+    }
+    
+    window.speechSynthesis.cancel();
 }
+
+// Remove the mousedown event listener since we want to start automatically
+// document.addEventListener('mousedown', startAnnouncements);
+
+// Start announcements immediately when the script loads
+startAnnouncements();
 
 async function createCongratulationOverlay() {
     // Stop the interval that plays audio
@@ -571,64 +886,62 @@ async function createCongratulationOverlay() {
     }, 100);
 }
 
-async function startAnnouncements() {
-    document.removeEventListener('mousedown', startAnnouncements);
-    createMuteButton();
-    createTwitterLink();
-    
-    // Try to load sounds first
-    const success = await loadSounds();
-    
-    if (success) {
-        startTime = Date.now();
-        
-        // Set up touch event listener for grass interaction
-        const canvas = document.getElementById('canvas');
-        if (canvas) {
-            canvas.addEventListener('click', handleTouch);
-            console.log('Added touch handler to canvas');
-        } else {
-            // Fallback to document if canvas not found
-            document.addEventListener('click', handleTouch);
-            console.log('Canvas not found, added touch handler to document');
-        }
-        
-        // Start the first audio immediately
-        await playNextAudio();
-        // No need for interval anymore as playNextAudio schedules itself
-        
-        // Set up congratulation check
-        const checkCongratulation = setInterval(async () => {
-            if (!congratulationShown && Date.now() - startTime >= 60 * 60 * 1000) {
-                // 60 minutes have passed
-                clearInterval(checkCongratulation);
-                congratulationShown = true;
-                await createCongratulationOverlay();
-            }
-        }, 1000); // Check every second
-    } else {
-        console.error('Failed to load audio files');
-    }
-}
+// Function to reset all state and local storage
+function resetAllState() {
+    // Clear all audio state
+    currentIndex = 0;
+    intervalId = null;
+    nextAudioTimeoutId = null;
+    startTime = null;
+    congratulationShown = false;
+    currentAudio = null;
+    isMuted = false;
+    soundsLoaded = false;
 
-function stopAnnouncements() {
-    if (intervalId) {
-        clearInterval(intervalId);
-        intervalId = null;
+    // Reset audio collections
+    defaultAudios = [];
+    touchAudios = [];
+    introAudios = [];
+    reloadAudios = [];
+    muteAudio = null;
+    successAudio = null;
+
+    // Reset state tracking
+    touchCount = 0;
+    playedTouchAudios = new Set();
+    defaultAudioIndex = 0;
+    introAudioIndex = 0;
+    hasUserTouchedGrass = false;
+    isFirstLoad = true;
+    lastAudioEndTime = 0;
+    audioPlaying = false;
+
+    // Clear localStorage
+    localStorage.removeItem('touchgrass_state');
+
+    // Stop any playing audio
+    if (currentAudio && !currentAudio.paused) {
+        currentAudio.pause();
+        currentAudio = null;
     }
-    
+
+    // Clear any scheduled timeouts
     if (nextAudioTimeoutId) {
         clearTimeout(nextAudioTimeoutId);
         nextAudioTimeoutId = null;
     }
-    
-    if (currentAudio) {
-        currentAudio.pause();
+
+    // Clear any intervals
+    if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
     }
-    
+
+    // Cancel any speech synthesis
     window.speechSynthesis.cancel();
+
+    console.log('All state has been reset');
 }
 
-// Event listeners
-document.addEventListener('mousedown', startAnnouncements);
-// document.addEventListener('mouseup', stopAnnouncements); 
+// Add reset function to window for easy access
+window.resetTouchGrassState = resetAllState; 
