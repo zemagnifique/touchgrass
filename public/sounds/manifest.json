@@ -1,6 +1,5 @@
 {
     "default": [
-        "speech.mp3",
         "chunk_000.mp3",
         "chunk_001.mp3",
         "chunk_002.mp3",
@@ -36,7 +35,15 @@
         "chunk_032.mp3",
         "chunk_033.mp3",
         "chunk_034.mp3",
-        "chunk_035.mp3",
+        "chunk_035.mp3"
+    ],
+    "touch": [
+        "touch.mp3"
+    ],
+    "success": [
         "success.mp3"
+    ],
+    "mute": [
+        "mute.mp3"
     ]
 } 

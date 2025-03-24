@@ -41,12 +41,15 @@ const announcements = [
 
 let currentIndex = 0;
 let intervalId = null;
+let nextAudioTimeoutId = null; // Track the timeout for next audio
 let startTime = null;
 let congratulationShown = false;
 let currentAudio = null;
 let isMuted = false;
 let soundsLoaded = false;
 let audioFiles = [];
+let muteAudio = null;
+let successAudio = null;
 
 function getBaseUrl() {
     // Always return root path
@@ -78,8 +81,16 @@ function createMuteButton() {
         isMuted = !isMuted;
         button.textContent = isMuted ? 'Unmute' : 'Mute';
         
-        if (isMuted && currentAudio) {
-            currentAudio.pause();
+        if (isMuted) {
+            // If muted, pause current audio and clear next audio timeout
+            if (currentAudio) {
+                currentAudio.pause();
+            }
+            
+            if (nextAudioTimeoutId) {
+                clearTimeout(nextAudioTimeoutId);
+                nextAudioTimeoutId = null;
+            }
             
             // Automatically unmute after 2 seconds
             clearTimeout(muteTimeout);
@@ -88,15 +99,37 @@ function createMuteButton() {
                 button.textContent = 'Mute';
                 
                 // Play unmute sound and wait for it to finish
-                const unmuteAudio = new Audio(new URL('sounds/mute.mp3', window.location.origin + baseUrl).href);
-                unmuteAudio.addEventListener('ended', () => {
-                    // Resume main speech after unmute sound finishes
-                    if (currentAudio) {
-                        currentAudio.play();
+                try {
+                    // Use the preloaded mute audio if available
+                    if (muteAudio) {
+                        muteAudio.currentTime = 0;
+                        const unmutePromise = new Promise((resolve, reject) => {
+                            const onEnded = () => {
+                                muteAudio.removeEventListener('ended', onEnded);
+                                resolve();
+                            };
+                            const onError = (error) => {
+                                muteAudio.removeEventListener('error', onError);
+                                reject(error);
+                            };
+                            muteAudio.addEventListener('ended', onEnded);
+                            muteAudio.addEventListener('error', onError);
+                        });
+                        
+                        await muteAudio.play();
+                        await unmutePromise;
+                        
+                        // Resume playback after unmute sound finishes
+                        playNextAudio();
+                    } else {
+                        // If no mute audio, just resume playback
+                        playNextAudio();
                     }
-                }, { once: true });
-                
-                await unmuteAudio.play();
+                } catch (error) {
+                    console.error('Failed to play unmute sound:', error);
+                    // Still try to resume playback
+                    playNextAudio();
+                }
             }, 2000);
         }
     });
@@ -147,13 +180,19 @@ async function loadSounds() {
         const manifest = await response.json();
         console.log('Manifest loaded:', manifest);
         
-        // Load all audio chunks from the manifest
-        const chunkFiles = manifest.default.filter(file => file.startsWith('chunk_'));
-        console.log(`Found ${chunkFiles.length} audio chunks in manifest`);
+        // Check if manifest has expected format
+        if (!manifest.default) {
+            console.error('Manifest is missing "default" audio list');
+            return false;
+        }
         
-        // Preload all audio files
+        // Load all audio chunks from the manifest
+        const defaultFiles = manifest.default || [];
+        console.log(`Found ${defaultFiles.length} audio files in manifest.default`);
+        
+        // Preload all default audio files
         audioFiles = [];
-        for (const file of chunkFiles) {
+        for (const file of defaultFiles) {
             try {
                 const audio = new Audio();
                 audio.src = new URL(`sounds/default/${file}`, window.location.origin + baseUrl).href;
@@ -176,8 +215,48 @@ async function loadSounds() {
             }
         }
         
+        // Load mute audio if available
+        if (manifest.mute && manifest.mute.length > 0) {
+            try {
+                muteAudio = new Audio();
+                muteAudio.src = new URL(`sounds/mute/${manifest.mute[0]}`, window.location.origin + baseUrl).href;
+                
+                const muteLoadPromise = new Promise((resolve, reject) => {
+                    muteAudio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                    muteAudio.addEventListener('error', (e) => reject(new Error(`Failed to load mute audio`)), { once: true });
+                });
+                
+                muteAudio.load();
+                await muteLoadPromise;
+                console.log('Loaded mute audio successfully');
+            } catch (error) {
+                console.error('Failed to load mute audio:', error);
+                muteAudio = null;
+            }
+        }
+        
+        // Load success audio if available
+        if (manifest.success && manifest.success.length > 0) {
+            try {
+                successAudio = new Audio();
+                successAudio.src = new URL(`sounds/success/${manifest.success[0]}`, window.location.origin + baseUrl).href;
+                
+                const successLoadPromise = new Promise((resolve, reject) => {
+                    successAudio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                    successAudio.addEventListener('error', (e) => reject(new Error(`Failed to load success audio`)), { once: true });
+                });
+                
+                successAudio.load();
+                await successLoadPromise;
+                console.log('Loaded success audio successfully');
+            } catch (error) {
+                console.error('Failed to load success audio:', error);
+                successAudio = null;
+            }
+        }
+        
         soundsLoaded = audioFiles.length > 0;
-        console.log(`${audioFiles.length} audio chunks loaded successfully`);
+        console.log(`${audioFiles.length} audio files loaded successfully`);
         return soundsLoaded;
     } catch (error) {
         console.error('Error loading sounds:', error);
@@ -196,15 +275,49 @@ async function playNextAudio() {
         
         currentAudio = audioFiles[currentIndex];
         currentAudio.currentTime = 0;
+        
+        // Set up the event listener for ended event before playing
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                currentAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            currentAudio.addEventListener('ended', onEnded);
+        });
+        
         await currentAudio.play();
         
         // Move to the next audio in the sequence
         currentIndex = (currentIndex + 1) % audioFiles.length;
+        
+        // Wait for the current audio to finish
+        await playPromise;
+        
+        // Clear any existing timeout
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+        }
+        
+        // Schedule the next audio after 3 seconds
+        nextAudioTimeoutId = setTimeout(playNextAudio, 3000);
+        
     } catch (error) {
         console.error('Failed to play audio:', error);
         // Fall back to TTS
-        await speakTTS(announcements[currentIndex % announcements.length]);
-        currentIndex = (currentIndex + 1) % announcements.length;
+        try {
+            await speakTTS(announcements[currentIndex % announcements.length]);
+            currentIndex = (currentIndex + 1) % announcements.length;
+            
+            // Clear any existing timeout
+            if (nextAudioTimeoutId) {
+                clearTimeout(nextAudioTimeoutId);
+            }
+            
+            // Schedule the next audio after 3 seconds
+            nextAudioTimeoutId = setTimeout(playNextAudio, 3000);
+        } catch (ttsError) {
+            console.error('TTS fallback also failed:', ttsError);
+        }
     }
 }
 
@@ -233,6 +346,12 @@ async function createCongratulationOverlay() {
     if (intervalId) {
         clearInterval(intervalId);
         intervalId = null;
+    }
+    
+    // Clear any scheduled next audio
+    if (nextAudioTimeoutId) {
+        clearTimeout(nextAudioTimeoutId);
+        nextAudioTimeoutId = null;
     }
     
     // Stop any currently playing audio
@@ -270,19 +389,25 @@ async function createCongratulationOverlay() {
 
     // Play success sound
     try {
-        const successAudio = new Audio();
-        successAudio.src = new URL('sounds/success.mp3', window.location.origin + baseUrl).href;
-        
-        const playPromise = new Promise((resolve, reject) => {
-            successAudio.addEventListener('ended', resolve, { once: true });
-            successAudio.addEventListener('error', reject, { once: true });
-        });
-        
-        successAudio.load();
-        await successAudio.play();
-        
-        // Wait for the audio to finish
-        await playPromise;
+        // Use the preloaded success audio if available
+        if (successAudio) {
+            successAudio.currentTime = 0;
+            const playPromise = new Promise((resolve, reject) => {
+                const onEnded = () => {
+                    successAudio.removeEventListener('ended', onEnded);
+                    resolve();
+                };
+                const onError = (error) => {
+                    successAudio.removeEventListener('error', onError);
+                    reject(error);
+                };
+                successAudio.addEventListener('ended', onEnded);
+                successAudio.addEventListener('error', onError);
+            });
+            
+            await successAudio.play();
+            await playPromise;
+        }
     } catch (error) {
         console.error('Failed to play success audio:', error);
     }
@@ -305,16 +430,15 @@ async function startAnnouncements() {
     if (success) {
         startTime = Date.now();
         
-        // Play a new audio every 3 seconds
+        // Start the first audio immediately
         await playNextAudio();
-        intervalId = setInterval(playNextAudio, 3000);
+        // No need for interval anymore as playNextAudio schedules itself
         
         // Set up congratulation check
         const checkCongratulation = setInterval(async () => {
             if (!congratulationShown && Date.now() - startTime >= 60 * 60 * 1000) {
                 // 60 minutes have passed
                 clearInterval(checkCongratulation);
-                clearInterval(intervalId);
                 congratulationShown = true;
                 await createCongratulationOverlay();
             }
@@ -329,9 +453,16 @@ function stopAnnouncements() {
         clearInterval(intervalId);
         intervalId = null;
     }
+    
+    if (nextAudioTimeoutId) {
+        clearTimeout(nextAudioTimeoutId);
+        nextAudioTimeoutId = null;
+    }
+    
     if (currentAudio) {
         currentAudio.pause();
     }
+    
     window.speechSynthesis.cancel();
 }
 
