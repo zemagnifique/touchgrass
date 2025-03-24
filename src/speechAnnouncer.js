@@ -49,12 +49,8 @@ let soundsLoaded = false;
 let audioFiles = [];
 
 function getBaseUrl() {
-    // Check if we're on the custom domain
-    if (window.location.hostname === 'touchgrass.vip') {
-        return '/';
-    }
-    // Otherwise use the repository path
-    return '/touchgrass/';
+    // Always return root path
+    return '/';
 }
 
 const baseUrl = getBaseUrl();

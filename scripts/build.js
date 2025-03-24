@@ -19,7 +19,7 @@ async function buildApp() {
 
     await build({
         configFile: path.join(projectRoot, 'vite.config.js'),
-        base: domain ? '/' : '/touchgrass/',
+        base: '/',
         build: {
             outDir: 'docs',
             assetsDir: 'assets'
