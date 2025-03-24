@@ -1,3 +1,5 @@
+import * as THREE from "three";
+
 const announcements = [
     "Congratulations! You touched some grass! Truly living the dream. You can leave now!",
 "No, really, that's the whole thing. You've peaked. Time to go.",
@@ -761,24 +763,58 @@ async function startAnnouncements() {
             console.log('Canvas not found, added touch handler to document');
         }
         
-        // Check if this is a reload or first load
-        if (!isFirstLoad && reloadAudios.length > 0) {
-            // Play reload audio first
-            await playReloadAudio();
-        } else {
-            // Start intro audio immediately
-            await playNextAppropriateAudio();
-        }
+        // Create a start button
+        const startButton = document.createElement('button');
+        startButton.style.cssText = `
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 15px 30px;
+            font-size: 18px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 1000;
+            transition: background 0.3s ease;
+        `;
+        startButton.textContent = 'Start Experience';
         
-        // Set up congratulation check
-        const checkCongratulation = setInterval(async () => {
-            if (!congratulationShown && Date.now() - startTime >= 60 * 60 * 1000) {
-                // 60 minutes have passed
-                clearInterval(checkCongratulation);
-                congratulationShown = true;
-                await createCongratulationOverlay();
+        startButton.addEventListener('mouseenter', () => {
+            startButton.style.background = 'rgba(0, 0, 0, 0.9)';
+        });
+        
+        startButton.addEventListener('mouseleave', () => {
+            startButton.style.background = 'rgba(0, 0, 0, 0.7)';
+        });
+        
+        startButton.addEventListener('click', async () => {
+            // Remove the start button
+            startButton.remove();
+            
+            // Check if this is a reload or first load
+            if (!isFirstLoad && reloadAudios.length > 0) {
+                // Play reload audio first
+                await playReloadAudio();
+            } else {
+                // Start intro audio immediately
+                await playNextAppropriateAudio();
             }
-        }, 1000); // Check every second
+            
+            // Set up congratulation check
+            const checkCongratulation = setInterval(async () => {
+                if (!congratulationShown && Date.now() - startTime >= 60 * 60 * 1000) {
+                    // 60 minutes have passed
+                    clearInterval(checkCongratulation);
+                    congratulationShown = true;
+                    await createCongratulationOverlay();
+                }
+            }, 1000); // Check every second
+        });
+        
+        document.body.appendChild(startButton);
     } else {
         console.error('Failed to load audio files');
     }
