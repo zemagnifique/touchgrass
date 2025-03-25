@@ -14,6 +14,14 @@ interface StatsWithDOM {
 	update(): void;
 }
 
+// Portal configuration
+const PORTAL_CONFIG = {
+	enabled: true, // Set to false to completely disable the portal
+	position: { x: 10, y: 20, z: 50 },
+	size: 2,
+	color: 0x00ffff
+};
+
 export class FluffyGrass {
 	// # Need access to these outside the comp
 	private loadingManager: THREE.LoadingManager;
@@ -364,14 +372,20 @@ export class FluffyGrass {
 
 	// Add method to create portal
 	private createPortal() {
+		// Skip portal creation if disabled
+		if (!PORTAL_CONFIG.enabled) {
+			console.log('Portal is disabled');
+			return;
+		}
+
 		// Create portal geometry (a filled circle)
-		const portalGeometry = new THREE.CircleGeometry(2, 32);
+		const portalGeometry = new THREE.CircleGeometry(PORTAL_CONFIG.size, 32);
 		
 		// Create portal material with a swirling effect
 		const portalMaterial = new THREE.ShaderMaterial({
 			uniforms: {
 				time: { value: 0 },
-				color: { value: new THREE.Color(0x00ffff) }
+				color: { value: new THREE.Color(PORTAL_CONFIG.color) }
 			},
 			vertexShader: `
 				varying vec2 vUv;
@@ -415,7 +429,7 @@ export class FluffyGrass {
 		
 		// Create portal mesh
 		this.portal = new THREE.Mesh(portalGeometry, portalMaterial);
-		this.portal.position.set(10, 20, 50); // Position in the sky
+		this.portal.position.set(PORTAL_CONFIG.position.x, PORTAL_CONFIG.position.y, PORTAL_CONFIG.position.z);
 		this.portal.rotation.z = Math.PI / 2; // Make it vertical
 		
 		// Add to scene
@@ -429,8 +443,8 @@ export class FluffyGrass {
 	public animate() {
 		// ... existing animation code ...
 		
-		// Animate portal if it exists
-		if (this.portal) {
+		// Animate portal if it exists and is enabled
+		if (this.portal && PORTAL_CONFIG.enabled) {
 			// Rotate portal
 			this.portal.rotation.z += this.portalRotationSpeed;
 			
@@ -460,8 +474,8 @@ export class FluffyGrass {
 		if (intersects.length > 0) {
 			const object = intersects[0].object;
 			
-			// Check if clicked object is the portal
-			if (object === this.portal) {
+			// Check if clicked object is the portal and portal is enabled
+			if (object === this.portal && PORTAL_CONFIG.enabled) {
 				if (this.portalClickCount === 0) {
 					// First click - play portal audio
 					this.portalClickCount++;
