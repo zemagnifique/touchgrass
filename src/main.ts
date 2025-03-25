@@ -345,6 +345,8 @@ export class FluffyGrass {
 	// Add method to check if a point is in the sky
 	public isPointInSky(point: THREE.Vector3): boolean {
 		// Consider anything above y=15 as sky
+		// Add some logging to help debug
+		console.log(`Point coordinates: x=${point.x}, y=${point.y}, z=${point.z}`);
 		return point.y > 15;
 	}
 }

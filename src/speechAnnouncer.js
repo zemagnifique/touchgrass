@@ -118,6 +118,12 @@ function saveState() {
 
 // Function to handle a touch event
 async function handleTouch(event) {
+    // If audio is currently playing, don't process new touches
+    if (audioPlaying) {
+        console.log('Audio is playing, ignoring touch');
+        return;
+    }
+
     // Get the click position
     const canvas = document.getElementById('canvas');
     if (!canvas) return;
@@ -136,37 +142,57 @@ async function handleTouch(event) {
 
     // Get the point where the ray intersects with the scene
     const intersects = raycaster.intersectObjects(window.fluffyGrass?.scene.children || [], true);
-    if (intersects.length > 0) {
-        const point = intersects[0].point;
-
-        // Check if the point is in the sky
-        if (window.fluffyGrass?.isPointInSky(point)) {
-            // Handle sky touch
-            if (!hasUserTouchedSky) {
-                hasUserTouchedSky = true;
-                saveState();
-            }
-            
-            skyTouchCount++;
-            console.log(`Sky touch count: ${skyTouchCount}`);
+    
+    // If no intersection found, consider it a sky touch
+    if (intersects.length === 0) {
+        console.log('No intersection found - treating as sky touch');
+        // Handle sky touch
+        if (!hasUserTouchedSky) {
+            hasUserTouchedSky = true;
             saveState();
-            
-            // Play a sky touch audio if available
-            await playSkyTouchAudio();
-        } else {
-            // Handle grass touch
-            if (!hasUserTouchedGrass) {
-                hasUserTouchedGrass = true;
-                saveState();
-            }
-            
-            touchCount++;
-            console.log(`Touch count: ${touchCount}`);
-            saveState();
-            
-            // Play a touch audio if available
-            await playTouchAudio();
         }
+        
+        skyTouchCount++;
+        console.log(`Sky touch count: ${skyTouchCount}`);
+        saveState();
+        
+        // Play a sky touch audio if available
+        await playSkyTouchAudio();
+        return;
+    }
+
+    // If we have an intersection, check if it's in the sky
+    const point = intersects[0].point;
+    console.log('Intersection point:', point);
+
+    if (window.fluffyGrass?.isPointInSky(point)) {
+        console.log('Sky touch detected!');
+        // Handle sky touch
+        if (!hasUserTouchedSky) {
+            hasUserTouchedSky = true;
+            saveState();
+        }
+        
+        skyTouchCount++;
+        console.log(`Sky touch count: ${skyTouchCount}`);
+        saveState();
+        
+        // Play a sky touch audio if available
+        await playSkyTouchAudio();
+    } else {
+        console.log('Grass touch detected!');
+        // Handle grass touch
+        if (!hasUserTouchedGrass) {
+            hasUserTouchedGrass = true;
+            saveState();
+        }
+        
+        touchCount++;
+        console.log(`Touch count: ${touchCount}`);
+        saveState();
+        
+        // Play a touch audio if available
+        await playTouchAudio();
     }
 }
 
