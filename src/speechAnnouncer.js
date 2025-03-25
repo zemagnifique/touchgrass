@@ -81,6 +81,18 @@ let isInTab = false;
 // Add new state variable for tracking if we've played tab audio
 let hasPlayedTabAudio = false;
 
+// Add state tracking for tab audio
+let tabAudioPlayed = false;
+
+// Add new audio collection for start experience
+let startExperienceAudios = [];
+
+// Add state tracking for start experience
+let startExperienceButton = null;
+let startExperienceOverlay = null;
+let startExperienceClickCount = 0;
+let startExperienceClickTimeout = null;
+
 // Load state from localStorage if available
 function loadState() {
     try {
@@ -127,6 +139,11 @@ function saveState() {
 
 // Function to handle a touch event
 async function handleTouch(event) {
+    // If start experience button is still showing, don't process touches
+    if (startExperienceButton && startExperienceButton.parentElement) {
+        return;
+    }
+
     // If audio is currently playing, don't process new touches
     if (audioPlaying) {
         console.log('Audio is playing, ignoring touch');
@@ -615,9 +632,9 @@ async function playTouchAudio() {
     }
 }
 
-// Function to play tab change audio
+// Function to play tab audio
 async function playTabAudio() {
-    if (!soundsLoaded || tabAudios.length === 0 || isMuted) return;
+    if (!soundsLoaded || tabAudios.length === 0 || isMuted || tabAudioPlayed) return;
     
     try {
         // Stop any currently playing audio
@@ -654,17 +671,12 @@ async function playTabAudio() {
         
         audioPlaying = false;
         lastAudioEndTime = Date.now();
-        
-        // Schedule the next audio check
-        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+        tabAudioPlayed = true; // Mark tab audio as played
         
     } catch (error) {
         console.error('Failed to play tab audio:', error);
         audioPlaying = false;
         lastAudioEndTime = Date.now();
-        
-        // Schedule the next audio check
-        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
     }
 }
 
@@ -1155,6 +1167,33 @@ async function loadSounds() {
             }
         }
         
+        // Load start experience audio files if available
+        if (manifest.startexperiencealt && manifest.startexperiencealt.length > 0) {
+            startExperienceAudios = [];
+            for (let i = 0; i < manifest.startexperiencealt.length; i++) {
+                try {
+                    const file = manifest.startexperiencealt[i];
+                    const audio = new Audio();
+                    audio.src = new URL(`sounds/startexperiencealt/${file}`, window.location.origin + baseUrl).href;
+                    
+                    const loadPromise = new Promise((resolve, reject) => {
+                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load start experience alt audio ${file}`)), { once: true });
+                        setTimeout(() => reject(new Error(`Timeout loading start experience alt audio ${file}`)), 10000);
+                    });
+                    
+                    audio.load();
+                    await loadPromise;
+                    startExperienceAudios[i] = audio;
+                    console.log(`Loaded start experience alt audio ${i}: ${file}`);
+                } catch (error) {
+                    console.error(`Failed to load start experience alt audio file at index ${i}:`, error);
+                    startExperienceAudios[i] = null;
+                }
+            }
+            console.log(`Loaded ${startExperienceAudios.filter(a => a !== null).length}/${startExperienceAudios.length} start experience alt audio files`);
+        }
+        
         soundsLoaded = introAudios.length > 0 || defaultAudios.length > 0 || touchAudios.length > 0 || 
                       skyTouchAudios.length > 0 || tabAudios.length > 0 || leaveAudios.length > 0 || 
                       portalAudios.length > 0;
@@ -1180,6 +1219,9 @@ async function startAnnouncements() {
     if (success) {
         startTime = Date.now();
         lastAudioEndTime = startTime;
+        
+        // Create start experience UI
+        createStartExperienceUI();
         
         // Set up touch event listener for grass interaction
         const canvas = document.getElementById('canvas');
@@ -1437,6 +1479,22 @@ function resetAllState() {
     // Reset tab state
     isInTab = false;
     hasPlayedTabAudio = false; // Reset the tab audio flag
+    tabAudioPlayed = false; // Reset tab audio state
+
+    // Reset start experience state
+    if (startExperienceButton) {
+        startExperienceButton.remove();
+        startExperienceButton = null;
+    }
+    if (startExperienceOverlay) {
+        startExperienceOverlay.remove();
+        startExperienceOverlay = null;
+    }
+    startExperienceClickCount = 0;
+    if (startExperienceClickTimeout) {
+        clearTimeout(startExperienceClickTimeout);
+        startExperienceClickTimeout = null;
+    }
 
     // Clear localStorage
     localStorage.removeItem('touchgrass_state');
@@ -1466,4 +1524,146 @@ function resetAllState() {
 }
 
 // Add reset function to window for easy access
-window.resetTouchGrassState = resetAllState; 
+window.resetTouchGrassState = resetAllState;
+
+// Function to create start experience overlay and button
+function createStartExperienceUI() {
+    // Create overlay
+    startExperienceOverlay = document.createElement('div');
+    startExperienceOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        z-index: 1000;
+        cursor: pointer;
+    `;
+
+    // Create button
+    startExperienceButton = document.createElement('button');
+    startExperienceButton.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 15px 30px;
+        font-size: 18px;
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        z-index: 1001;
+        transition: background 0.3s ease;
+    `;
+    startExperienceButton.textContent = 'Start Experience';
+    
+    startExperienceButton.addEventListener('mouseenter', () => {
+        startExperienceButton.style.background = 'rgba(0, 0, 0, 0.9)';
+    });
+    
+    startExperienceButton.addEventListener('mouseleave', () => {
+        startExperienceButton.style.background = 'rgba(0, 0, 0, 0.7)';
+    });
+
+    // Add click handler for overlay
+    startExperienceOverlay.addEventListener('click', (event) => {
+        // Don't count clicks on the button
+        if (event.target === startExperienceButton) return;
+
+        // Clear previous timeout if exists
+        if (startExperienceClickTimeout) {
+            clearTimeout(startExperienceClickTimeout);
+        }
+
+        startExperienceClickCount++;
+        
+        // Reset count after 2 seconds if not clicked again
+        startExperienceClickTimeout = setTimeout(() => {
+            startExperienceClickCount = 0;
+        }, 2000);
+
+        // If clicked twice within 2 seconds
+        if (startExperienceClickCount === 2) {
+            playStartExperienceAlt();
+        }
+    });
+
+    // Add click handler for button
+    startExperienceButton.addEventListener('click', async () => {
+        // Remove the start button and overlay
+        startExperienceButton.remove();
+        startExperienceOverlay.remove();
+        
+        // Check if this is a reload or first load
+        if (!isFirstLoad && reloadAudios.length > 0) {
+            // Play reload audio first
+            await playReloadAudio();
+        } else {
+            // Start intro audio immediately
+            await playNextAppropriateAudio();
+        }
+        
+        // Set up congratulation check
+        const checkCongratulation = setInterval(async () => {
+            if (!congratulationShown && Date.now() - startTime >= 60 * 60 * 1000) {
+                // 60 minutes have passed
+                clearInterval(checkCongratulation);
+                congratulationShown = true;
+                await createCongratulationOverlay();
+            }
+        }, 1000); // Check every second
+    });
+    
+    startExperienceOverlay.appendChild(startExperienceButton);
+    document.body.appendChild(startExperienceOverlay);
+}
+
+// Function to play start experience alt audio
+async function playStartExperienceAlt() {
+    if (!soundsLoaded || startExperienceAudios.length === 0 || isMuted) return;
+    
+    try {
+        // Stop any currently playing audio
+        if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+        }
+        
+        // Clear any scheduled next audio
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+        
+        audioPlaying = true;
+        
+        // Get a random start experience audio
+        const audioIndex = Math.floor(Math.random() * startExperienceAudios.length);
+        currentAudio = startExperienceAudios[audioIndex];
+        currentAudio.currentTime = 0;
+        
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                currentAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            currentAudio.addEventListener('ended', onEnded);
+        });
+        
+        console.log(`Playing start experience alt audio ${audioIndex}`);
+        await currentAudio.play();
+        
+        // Wait for the audio to finish
+        await playPromise;
+        
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+    } catch (error) {
+        console.error('Failed to play start experience alt audio:', error);
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+    }
+} 
