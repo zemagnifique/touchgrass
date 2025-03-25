@@ -46,6 +46,14 @@ export class FluffyGrass {
 	private grassMaterial: GrassMaterial;
 	private grassCount = 8000;
 
+	// Add portal-related properties
+	private portal: THREE.Mesh | null = null;
+	private portalRotationSpeed = 0.02;
+	private portalPulseSpeed = 0.05;
+	private portalPulseScale = 0.1;
+	private portalClickCount = 0;
+	private portalAudioFinished = false; // New flag to track audio completion
+
 	constructor(_canvas: HTMLCanvasElement) {
 		this.loadingManager = new THREE.LoadingManager();
 		this.textureLoader = new THREE.TextureLoader(this.loadingManager);
@@ -112,6 +120,7 @@ export class FluffyGrass {
 		this.loadModels();
 		this.setupEventListeners();
 		this.addLights();
+		this.createPortal();
 	}
 
 	private createCube() {
@@ -299,6 +308,9 @@ export class FluffyGrass {
 			console.log(this.renderer.info.render);
 		});
 
+		// Add click event listener for portal interaction
+		this.canvas.addEventListener("click", (event) => this.handleClick(event));
+
 		// const randomizeGrassColor = document.querySelector(
 		// 	".randomizeButton"
 		// ) as HTMLButtonElement;
@@ -348,6 +360,126 @@ export class FluffyGrass {
 		// Add some logging to help debug
 		console.log(`Point coordinates: x=${point.x}, y=${point.y}, z=${point.z}`);
 		return point.y > 15;
+	}
+
+	// Add method to create portal
+	private createPortal() {
+		// Create portal geometry (a filled circle)
+		const portalGeometry = new THREE.CircleGeometry(2, 32);
+		
+		// Create portal material with a swirling effect
+		const portalMaterial = new THREE.ShaderMaterial({
+			uniforms: {
+				time: { value: 0 },
+				color: { value: new THREE.Color(0x00ffff) }
+			},
+			vertexShader: `
+				varying vec2 vUv;
+				void main() {
+					vUv = uv;
+					gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+				}
+			`,
+			fragmentShader: `
+				uniform float time;
+				uniform vec3 color;
+				varying vec2 vUv;
+				
+				void main() {
+					vec2 center = vec2(0.5, 0.5);
+					float dist = length(vUv - center);
+					
+					// Create swirling effect
+					float angle = atan(vUv.y - 0.5, vUv.x - 0.5);
+					float swirl = sin(angle * 10.0 + time * 2.0) * 0.5 + 0.5;
+					
+					// Create pulsing effect
+					float pulse = sin(time * 3.0) * 0.5 + 0.5;
+					
+					// Create a filled circle with smooth edges
+					float circle = smoothstep(0.5, 0.0, dist);
+					
+					// Combine effects
+					float alpha = circle * (swirl * 0.7 + pulse * 0.3);
+					
+					// Add some sparkles
+					float sparkle = step(0.95, sin(vUv.x * 20.0 + time) * sin(vUv.y * 20.0 + time));
+					
+					gl_FragColor = vec4(color, alpha + sparkle * 0.5);
+				}
+			`,
+			transparent: true,
+			blending: THREE.AdditiveBlending,
+			side: THREE.DoubleSide
+		});
+		
+		// Create portal mesh
+		this.portal = new THREE.Mesh(portalGeometry, portalMaterial);
+		this.portal.position.set(10, 20, 50); // Position in the sky
+		this.portal.rotation.z = Math.PI / 2; // Make it vertical
+		
+		// Add to scene
+		this.scene.add(this.portal);
+		
+		// Add click handler
+		this.portal.userData.clickable = true;
+	}
+
+	// Update animate method to include portal animation
+	public animate() {
+		// ... existing animation code ...
+		
+		// Animate portal if it exists
+		if (this.portal) {
+			// Rotate portal
+			this.portal.rotation.z += this.portalRotationSpeed;
+			
+			// Update portal shader time uniform
+			const portalMaterial = this.portal.material as THREE.ShaderMaterial;
+			portalMaterial.uniforms.time.value += this.portalPulseSpeed;
+			
+			// Pulse portal size
+			const scale = 1 + Math.sin(Date.now() * this.portalPulseSpeed) * this.portalPulseScale;
+			this.portal.scale.set(scale, scale, scale);
+		}
+		
+		// ... rest of animation code ...
+	}
+
+	// Update handleClick to handle portal clicks
+	private handleClick(event: MouseEvent) {
+		const canvas = this.canvas;
+		const rect = canvas.getBoundingClientRect();
+		const x = ((event.clientX - rect.left) / canvas.width) * 2 - 1;
+		const y = -((event.clientY - rect.top) / canvas.height) * 2 + 1;
+
+		const raycaster = new THREE.Raycaster();
+		raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+		const intersects = raycaster.intersectObjects(this.scene.children, true);
+		
+		if (intersects.length > 0) {
+			const object = intersects[0].object;
+			
+			// Check if clicked object is the portal
+			if (object === this.portal) {
+				if (this.portalClickCount === 0) {
+					// First click - play portal audio
+					this.portalClickCount++;
+					this.portalAudioFinished = false;
+					window.dispatchEvent(new CustomEvent('portalClick'));
+				} else if (this.portalClickCount === 1 && this.portalAudioFinished) {
+					// Second click - only if audio has finished
+					this.portalClickCount++;
+					window.location.href = 'http://portal.pieter.com';
+				}
+			}
+		}
+	}
+
+	// Add method to handle portal audio completion
+	public onPortalAudioComplete() {
+		this.portalAudioFinished = true;
+		console.log('Portal audio finished, ready for second click');
 	}
 }
 

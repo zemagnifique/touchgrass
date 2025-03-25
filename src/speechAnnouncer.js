@@ -58,6 +58,7 @@ let reloadAudios = [];
 let skyTouchAudios = []; // New collection for sky touch audio
 let tabAudios = []; // New collection for tab change audio
 let leaveAudios = []; // New collection for leave audio
+let portalAudios = []; // New collection for portal audio
 let muteAudio = null;
 let successAudio = null;
 
@@ -73,6 +74,12 @@ let hasUserTouchedSky = false; // New flag for sky touches
 let isFirstLoad = true;
 let lastAudioEndTime = 0;
 let audioPlaying = false;
+
+// Add new state variable for tracking if we're in a tab
+let isInTab = false;
+
+// Add new state variable for tracking if we've played tab audio
+let hasPlayedTabAudio = false;
 
 // Load state from localStorage if available
 function loadState() {
@@ -283,7 +290,7 @@ async function playSkyTouchAudio() {
 
 // Function to play the next appropriate audio based on state
 async function playNextAppropriateAudio() {
-    if (isMuted) return;
+    if (isMuted || isInTab) return;
     
     const now = Date.now();
     
@@ -708,6 +715,58 @@ async function playLeaveAudio() {
     }
 }
 
+// Function to play portal audio
+async function playPortalAudio() {
+    if (!soundsLoaded || portalAudios.length === 0 || isMuted) return;
+    
+    try {
+        // Stop any currently playing audio
+        if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+        }
+        
+        // Clear any scheduled next audio
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+        
+        audioPlaying = true;
+        
+        // Get a random portal audio
+        const portalIndex = Math.floor(Math.random() * portalAudios.length);
+        currentAudio = portalAudios[portalIndex];
+        currentAudio.currentTime = 0;
+        
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                currentAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            currentAudio.addEventListener('ended', onEnded);
+        });
+        
+        console.log(`Playing portal audio ${portalIndex}`);
+        await currentAudio.play();
+        
+        // Wait for the audio to finish
+        await playPromise;
+        
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Notify that portal audio is finished
+        if (window.fluffyGrass) {
+            window.fluffyGrass.onPortalAudioComplete();
+        }
+        
+    } catch (error) {
+        console.error('Failed to play portal audio:', error);
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+    }
+}
+
 function getBaseUrl() {
     // Always return root path
     return '/';
@@ -1029,6 +1088,33 @@ async function loadSounds() {
             console.log(`Loaded ${leaveAudios.filter(a => a !== null).length}/${leaveAudios.length} leave audio files`);
         }
         
+        // Load portal audio files if available
+        if (manifest.portal && manifest.portal.length > 0) {
+            portalAudios = [];
+            for (let i = 0; i < manifest.portal.length; i++) {
+                try {
+                    const file = manifest.portal[i];
+                    const audio = new Audio();
+                    audio.src = new URL(`sounds/portal/${file}`, window.location.origin + baseUrl).href;
+                    
+                    const loadPromise = new Promise((resolve, reject) => {
+                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load portal audio ${file}`)), { once: true });
+                        setTimeout(() => reject(new Error(`Timeout loading portal audio ${file}`)), 10000);
+                    });
+                    
+                    audio.load();
+                    await loadPromise;
+                    portalAudios[i] = audio;
+                    console.log(`Loaded portal audio ${i}: ${file}`);
+                } catch (error) {
+                    console.error(`Failed to load portal audio file at index ${i}:`, error);
+                    portalAudios[i] = null;
+                }
+            }
+            console.log(`Loaded ${portalAudios.filter(a => a !== null).length}/${portalAudios.length} portal audio files`);
+        }
+        
         // Load mute audio if available
         if (manifest.mute && manifest.mute.length > 0) {
             try {
@@ -1070,7 +1156,8 @@ async function loadSounds() {
         }
         
         soundsLoaded = introAudios.length > 0 || defaultAudios.length > 0 || touchAudios.length > 0 || 
-                      skyTouchAudios.length > 0 || tabAudios.length > 0 || leaveAudios.length > 0;
+                      skyTouchAudios.length > 0 || tabAudios.length > 0 || leaveAudios.length > 0 || 
+                      portalAudios.length > 0;
         return soundsLoaded;
     } catch (error) {
         console.error('Error loading sounds:', error);
@@ -1108,8 +1195,28 @@ async function startAnnouncements() {
         // Add visibility change handler for tab changes
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                console.log('Tab changed - playing tab audio');
-                playTabAudio();
+                console.log('Tab changed - playing tab audio and pausing default audio');
+                isInTab = true;
+                // Stop any currently playing default audio
+                if (currentAudio && !currentAudio.paused) {
+                    currentAudio.pause();
+                }
+                // Clear any scheduled next audio
+                if (nextAudioTimeoutId) {
+                    clearTimeout(nextAudioTimeoutId);
+                    nextAudioTimeoutId = null;
+                }
+                // Only play tab audio if we haven't played it yet
+                if (!hasPlayedTabAudio) {
+                    playTabAudio();
+                    hasPlayedTabAudio = true;
+                }
+            } else {
+                console.log('Returned to tab - resuming audio');
+                isInTab = false;
+                hasPlayedTabAudio = false; // Reset the flag when returning to tab
+                // Resume audio playback
+                playNextAppropriateAudio();
             }
         });
         
@@ -1117,6 +1224,12 @@ async function startAnnouncements() {
         window.addEventListener('beforeunload', () => {
             console.log('User leaving site - playing leave audio');
             playLeaveAudio();
+        });
+        
+        // Add portal click handler
+        window.addEventListener('portalClick', () => {
+            console.log('Portal clicked - playing portal audio');
+            playPortalAudio();
         });
         
         // Create a start button
@@ -1201,6 +1314,12 @@ function stopAnnouncements() {
 startAnnouncements();
 
 async function createCongratulationOverlay() {
+    // Only show congratulation if we're not in a tab
+    if (isInTab) {
+        console.log('Skipping congratulation overlay - user is in another tab');
+        return;
+    }
+
     // Stop the interval that plays audio
     if (intervalId) {
         clearInterval(intervalId);
@@ -1296,8 +1415,9 @@ function resetAllState() {
     introAudios = [];
     reloadAudios = [];
     skyTouchAudios = [];
-    tabAudios = []; // Reset tab audios
-    leaveAudios = []; // Reset leave audios
+    tabAudios = [];
+    leaveAudios = [];
+    portalAudios = [];
     muteAudio = null;
     successAudio = null;
 
@@ -1313,6 +1433,10 @@ function resetAllState() {
     isFirstLoad = true;
     lastAudioEndTime = 0;
     audioPlaying = false;
+
+    // Reset tab state
+    isInTab = false;
+    hasPlayedTabAudio = false; // Reset the tab audio flag
 
     // Clear localStorage
     localStorage.removeItem('touchgrass_state');
