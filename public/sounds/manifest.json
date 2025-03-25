@@ -43,7 +43,10 @@
         "mute.mp3"
     ],
     "reload": [
-        "reload.mp3"
+        "chunk_000.mp3",
+        "chunk_001.mp3",
+        "chunk_002.mp3",
+        "chunk_003.mp3"   
     ],
     "leave": [
         "leave.mp3"
@@ -59,6 +62,16 @@
     ],
     "sky_position": [
         "sky_look_away.mp3"
+    ],
+    "sky_touch": [
+        "chunk_000.mp3",
+        "chunk_001.mp3",
+        "chunk_002.mp3",
+        "chunk_003.mp3",
+        "chunk_004.mp3",
+        "chunk_005.mp3",
+        "chunk_006.mp3",
+        "chunk_007.mp3"  
     ],
     "whisper": [
         "whisper.mp3"

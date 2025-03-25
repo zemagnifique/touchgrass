@@ -55,18 +55,22 @@ let defaultAudios = [];
 let touchAudios = [];
 let introAudios = [];
 let reloadAudios = [];
+let skyTouchAudios = []; // New collection for sky touch audio
 let muteAudio = null;
 let successAudio = null;
 
 // State tracking
 let touchCount = 0;
-let playedTouchAudios = new Set(); // Keep track of touch audios already played
-let defaultAudioIndex = 0;  // Keep track of which default audio to play next
-let introAudioIndex = 0;    // Keep track of which intro audio to play next
-let hasUserTouchedGrass = false;  // Flag to know if user has interacted with the grass
-let isFirstLoad = true;     // Flag to identify first load vs reload
-let lastAudioEndTime = 0;   // Track when the last audio ended
-let audioPlaying = false;   // Track if an audio is currently playing
+let skyTouchCount = 0; // New counter for sky touches
+let playedTouchAudios = new Set();
+let playedSkyTouchAudios = new Set(); // New set for sky touch audios
+let defaultAudioIndex = 0;
+let introAudioIndex = 0;
+let hasUserTouchedGrass = false;
+let hasUserTouchedSky = false; // New flag for sky touches
+let isFirstLoad = true;
+let lastAudioEndTime = 0;
+let audioPlaying = false;
 
 // Load state from localStorage if available
 function loadState() {
@@ -75,14 +79,18 @@ function loadState() {
         if (savedState) {
             const state = JSON.parse(savedState);
             touchCount = state.touchCount || 0;
+            skyTouchCount = state.skyTouchCount || 0; // Load sky touch count
             playedTouchAudios = new Set(state.playedTouchAudios || []);
+            playedSkyTouchAudios = new Set(state.playedSkyTouchAudios || []); // Load sky touch audios
             defaultAudioIndex = state.defaultAudioIndex || 0;
             introAudioIndex = state.introAudioIndex || 0;
             hasUserTouchedGrass = state.hasUserTouchedGrass || false;
-            isFirstLoad = false; // If we're loading state, this isn't the first load
+            hasUserTouchedSky = state.hasUserTouchedSky || false; // Load sky touch flag
+            isFirstLoad = false;
             
-            console.log(`Loaded state: touchCount=${touchCount}, defaultIndex=${defaultAudioIndex}, introIndex=${introAudioIndex}, hasUserTouchedGrass=${hasUserTouchedGrass}`);
+            console.log(`Loaded state: touchCount=${touchCount}, skyTouchCount=${skyTouchCount}, defaultIndex=${defaultAudioIndex}, introIndex=${introAudioIndex}, hasUserTouchedGrass=${hasUserTouchedGrass}, hasUserTouchedSky=${hasUserTouchedSky}`);
             console.log(`Played touch audios: ${Array.from(playedTouchAudios).join(',')}`);
+            console.log(`Played sky touch audios: ${Array.from(playedSkyTouchAudios).join(',')}`);
         }
     } catch (error) {
         console.error('Failed to load state from localStorage:', error);
@@ -94,10 +102,13 @@ function saveState() {
     try {
         const state = {
             touchCount: touchCount,
+            skyTouchCount: skyTouchCount, // Save sky touch count
             playedTouchAudios: Array.from(playedTouchAudios),
+            playedSkyTouchAudios: Array.from(playedSkyTouchAudios), // Save sky touch audios
             defaultAudioIndex: defaultAudioIndex,
             introAudioIndex: introAudioIndex,
-            hasUserTouchedGrass: hasUserTouchedGrass
+            hasUserTouchedGrass: hasUserTouchedGrass,
+            hasUserTouchedSky: hasUserTouchedSky // Save sky touch flag
         };
         localStorage.setItem('touchgrass_state', JSON.stringify(state));
     } catch (error) {
@@ -106,19 +117,140 @@ function saveState() {
 }
 
 // Function to handle a touch event
-async function handleTouch() {
-    // If this is the first touch, mark that user has touched grass
-    if (!hasUserTouchedGrass) {
-        hasUserTouchedGrass = true;
-        saveState();
+async function handleTouch(event) {
+    // Get the click position
+    const canvas = document.getElementById('canvas');
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / canvas.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / canvas.height) * 2 + 1;
+
+    // Create a raycaster
+    const raycaster = new THREE.Raycaster();
+    const camera = window.fluffyGrass?.camera;
+    if (!camera) return;
+
+    // Set up the raycaster
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+    // Get the point where the ray intersects with the scene
+    const intersects = raycaster.intersectObjects(window.fluffyGrass?.scene.children || [], true);
+    if (intersects.length > 0) {
+        const point = intersects[0].point;
+
+        // Check if the point is in the sky
+        if (window.fluffyGrass?.isPointInSky(point)) {
+            // Handle sky touch
+            if (!hasUserTouchedSky) {
+                hasUserTouchedSky = true;
+                saveState();
+            }
+            
+            skyTouchCount++;
+            console.log(`Sky touch count: ${skyTouchCount}`);
+            saveState();
+            
+            // Play a sky touch audio if available
+            await playSkyTouchAudio();
+        } else {
+            // Handle grass touch
+            if (!hasUserTouchedGrass) {
+                hasUserTouchedGrass = true;
+                saveState();
+            }
+            
+            touchCount++;
+            console.log(`Touch count: ${touchCount}`);
+            saveState();
+            
+            // Play a touch audio if available
+            await playTouchAudio();
+        }
     }
+}
+
+// Function to play sky touch audio
+async function playSkyTouchAudio() {
+    if (!soundsLoaded || skyTouchAudios.length === 0 || isMuted) return;
     
-    touchCount++;
-    console.log(`Touch count: ${touchCount}`);
-    saveState();
-    
-    // Play a touch audio if available
-    await playTouchAudio();
+    try {
+        // Find the appropriate audio file to play
+        let audioIndex = -1;
+        let highestMatchingIndex = -1;
+        
+        // First try to find exact match for sky touch count
+        if (skyTouchCount < skyTouchAudios.length && skyTouchAudios[skyTouchCount] && !playedSkyTouchAudios.has(skyTouchCount)) {
+            audioIndex = skyTouchCount;
+        } else {
+            // If no exact match, find the highest available index that hasn't been played
+            for (let i = 0; i < Math.min(skyTouchCount, skyTouchAudios.length); i++) {
+                if (skyTouchAudios[i] && !playedSkyTouchAudios.has(i) && i > highestMatchingIndex) {
+                    highestMatchingIndex = i;
+                }
+            }
+            
+            if (highestMatchingIndex >= 0) {
+                audioIndex = highestMatchingIndex;
+            }
+        }
+        
+        // If no suitable audio found, return
+        if (audioIndex === -1 || !skyTouchAudios[audioIndex]) {
+            console.log('No suitable sky touch audio found for count:', skyTouchCount);
+            return;
+        }
+        
+        console.log(`Playing sky touch audio at index ${audioIndex} for count ${skyTouchCount}`);
+        
+        // Stop any currently playing audio
+        if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+        }
+        
+        // Clear any scheduled next audio
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+        
+        audioPlaying = true;
+        
+        // Play the sky touch audio
+        currentAudio = skyTouchAudios[audioIndex];
+        currentAudio.currentTime = 0;
+        
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                currentAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            currentAudio.addEventListener('ended', onEnded);
+        });
+        
+        await currentAudio.play();
+        
+        // Mark this audio as played
+        playedSkyTouchAudios.add(audioIndex);
+        saveState();
+        
+        // Wait for the audio to finish
+        await playPromise;
+        
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+        
+    } catch (error) {
+        console.error('Failed to play sky touch audio:', error);
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+    }
 }
 
 // Function to play the next appropriate audio based on state
@@ -688,6 +820,33 @@ async function loadSounds() {
             console.log(`Loaded ${reloadAudios.filter(a => a !== null).length}/${reloadAudios.length} reload audio files`);
         }
         
+        // Load sky touch audio files if available
+        if (manifest.sky_touch && manifest.sky_touch.length > 0) {
+            skyTouchAudios = [];
+            for (let i = 0; i < manifest.sky_touch.length; i++) {
+                try {
+                    const file = manifest.sky_touch[i];
+                    const audio = new Audio();
+                    audio.src = new URL(`sounds/sky_touch/${file}`, window.location.origin + baseUrl).href;
+                    
+                    const loadPromise = new Promise((resolve, reject) => {
+                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load sky touch audio ${file}`)), { once: true });
+                        setTimeout(() => reject(new Error(`Timeout loading sky touch audio ${file}`)), 10000);
+                    });
+                    
+                    audio.load();
+                    await loadPromise;
+                    skyTouchAudios[i] = audio;
+                    console.log(`Loaded sky touch audio ${i}: ${file}`);
+                } catch (error) {
+                    console.error(`Failed to load sky touch audio file at index ${i}:`, error);
+                    skyTouchAudios[i] = null;
+                }
+            }
+            console.log(`Loaded ${skyTouchAudios.filter(a => a !== null).length}/${skyTouchAudios.length} sky touch audio files`);
+        }
+        
         // Load mute audio if available
         if (manifest.mute && manifest.mute.length > 0) {
             try {
@@ -728,7 +887,7 @@ async function loadSounds() {
             }
         }
         
-        soundsLoaded = introAudios.length > 0 || defaultAudios.length > 0 || touchAudios.length > 0;
+        soundsLoaded = introAudios.length > 0 || defaultAudios.length > 0 || touchAudios.length > 0 || skyTouchAudios.length > 0;
         return soundsLoaded;
     } catch (error) {
         console.error('Error loading sounds:', error);
@@ -939,15 +1098,19 @@ function resetAllState() {
     touchAudios = [];
     introAudios = [];
     reloadAudios = [];
+    skyTouchAudios = [];
     muteAudio = null;
     successAudio = null;
 
     // Reset state tracking
     touchCount = 0;
+    skyTouchCount = 0;
     playedTouchAudios = new Set();
+    playedSkyTouchAudios = new Set();
     defaultAudioIndex = 0;
     introAudioIndex = 0;
     hasUserTouchedGrass = false;
+    hasUserTouchedSky = false;
     isFirstLoad = true;
     lastAudioEndTime = 0;
     audioPlaying = false;

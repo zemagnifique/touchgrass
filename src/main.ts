@@ -69,7 +69,7 @@ export class FluffyGrass {
 		this.camera.position.set(-17, 12, -10);
 		this.scene = new THREE.Scene();
 
-		this.scene.background = new THREE.Color(this.sceneProps.fogColor);
+		this.scene.background = new THREE.Color('#87CEEB'); // Light blue sky color
 		this.scene.fog = new THREE.FogExp2(
 			this.sceneProps.fogColor,
 			this.sceneProps.fogDensity
@@ -340,6 +340,12 @@ export class FluffyGrass {
 		this.grassMaterial.uniforms.baseColor.value = terrainColor;
 		this.grassMaterial.uniforms.tipColor1.value = grassTip1Color;
 		this.grassMaterial.uniforms.tipColor2.value = grassTip2Color;
+	}
+
+	// Add method to check if a point is in the sky
+	public isPointInSky(point: THREE.Vector3): boolean {
+		// Consider anything above y=15 as sky
+		return point.y > 15;
 	}
 }
 
