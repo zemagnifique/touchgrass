@@ -314,6 +314,16 @@ async function playNextAppropriateAudio() {
     // If audio is already playing, don't do anything
     if (audioPlaying) return;
     
+    // Hide start button and overlay if they exist
+    if (startExperienceButton && startExperienceButton.parentElement) {
+        startExperienceButton.remove();
+        startExperienceButton = null;
+    }
+    if (startExperienceOverlay) {
+        startExperienceOverlay.remove();
+        startExperienceOverlay = null;
+    }
+    
     // If it's the first load and user hasn't touched grass yet, play intro audio
     if (!hasUserTouchedGrass && introAudios.length > 0) {
         await playIntroAudio();
@@ -1273,59 +1283,6 @@ async function startAnnouncements() {
             console.log('Portal clicked - playing portal audio');
             playPortalAudio();
         });
-        
-        // Create a start button
-        const startButton = document.createElement('button');
-        startButton.style.cssText = `
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            padding: 15px 30px;
-            font-size: 18px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            z-index: 1000;
-            transition: background 0.3s ease;
-        `;
-        startButton.textContent = 'Start Experience';
-        
-        startButton.addEventListener('mouseenter', () => {
-            startButton.style.background = 'rgba(0, 0, 0, 0.9)';
-        });
-        
-        startButton.addEventListener('mouseleave', () => {
-            startButton.style.background = 'rgba(0, 0, 0, 0.7)';
-        });
-        
-        startButton.addEventListener('click', async () => {
-            // Remove the start button
-            startButton.remove();
-            
-            // Check if this is a reload or first load
-            if (!isFirstLoad && reloadAudios.length > 0) {
-                // Play reload audio first
-                await playReloadAudio();
-            } else {
-                // Start intro audio immediately
-                await playNextAppropriateAudio();
-            }
-            
-            // Set up congratulation check
-            const checkCongratulation = setInterval(async () => {
-                if (!congratulationShown && Date.now() - startTime >= 60 * 60 * 1000) {
-                    // 60 minutes have passed
-                    clearInterval(checkCongratulation);
-                    congratulationShown = true;
-                    await createCongratulationOverlay();
-                }
-            }, 1000); // Check every second
-        });
-        
-        document.body.appendChild(startButton);
     } else {
         console.error('Failed to load audio files');
     }
@@ -1538,7 +1495,6 @@ function createStartExperienceUI() {
         height: 100%;
         background: transparent;
         z-index: 1000;
-        cursor: pointer;
     `;
 
     // Create button
@@ -1635,6 +1591,16 @@ async function playStartExperienceAlt() {
         if (nextAudioTimeoutId) {
             clearTimeout(nextAudioTimeoutId);
             nextAudioTimeoutId = null;
+        }
+        
+        // Hide start button and overlay
+        if (startExperienceButton && startExperienceButton.parentElement) {
+            startExperienceButton.remove();
+            startExperienceButton = null;
+        }
+        if (startExperienceOverlay) {
+            startExperienceOverlay.remove();
+            startExperienceOverlay = null;
         }
         
         audioPlaying = true;
