@@ -56,6 +56,8 @@ let touchAudios = [];
 let introAudios = [];
 let reloadAudios = [];
 let skyTouchAudios = []; // New collection for sky touch audio
+let tabAudios = []; // New collection for tab change audio
+let leaveAudios = []; // New collection for leave audio
 let muteAudio = null;
 let successAudio = null;
 
@@ -606,6 +608,106 @@ async function playTouchAudio() {
     }
 }
 
+// Function to play tab change audio
+async function playTabAudio() {
+    if (!soundsLoaded || tabAudios.length === 0 || isMuted) return;
+    
+    try {
+        // Stop any currently playing audio
+        if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+        }
+        
+        // Clear any scheduled next audio
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+        
+        audioPlaying = true;
+        
+        // Get a random tab audio
+        const tabIndex = Math.floor(Math.random() * tabAudios.length);
+        currentAudio = tabAudios[tabIndex];
+        currentAudio.currentTime = 0;
+        
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                currentAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            currentAudio.addEventListener('ended', onEnded);
+        });
+        
+        console.log(`Playing tab audio ${tabIndex}`);
+        await currentAudio.play();
+        
+        // Wait for the audio to finish
+        await playPromise;
+        
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+        
+    } catch (error) {
+        console.error('Failed to play tab audio:', error);
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+        // Schedule the next audio check
+        nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+    }
+}
+
+// Function to play leave audio
+async function playLeaveAudio() {
+    if (!soundsLoaded || leaveAudios.length === 0 || isMuted) return;
+    
+    try {
+        // Stop any currently playing audio
+        if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+        }
+        
+        // Clear any scheduled next audio
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+        
+        audioPlaying = true;
+        
+        // Get a random leave audio
+        const leaveIndex = Math.floor(Math.random() * leaveAudios.length);
+        currentAudio = leaveAudios[leaveIndex];
+        currentAudio.currentTime = 0;
+        
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                currentAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            currentAudio.addEventListener('ended', onEnded);
+        });
+        
+        console.log(`Playing leave audio ${leaveIndex}`);
+        await currentAudio.play();
+        
+        // Wait for the audio to finish
+        await playPromise;
+        
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+        
+    } catch (error) {
+        console.error('Failed to play leave audio:', error);
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+    }
+}
+
 function getBaseUrl() {
     // Always return root path
     return '/';
@@ -873,6 +975,60 @@ async function loadSounds() {
             console.log(`Loaded ${skyTouchAudios.filter(a => a !== null).length}/${skyTouchAudios.length} sky touch audio files`);
         }
         
+        // Load tab audio files if available
+        if (manifest.tab && manifest.tab.length > 0) {
+            tabAudios = [];
+            for (let i = 0; i < manifest.tab.length; i++) {
+                try {
+                    const file = manifest.tab[i];
+                    const audio = new Audio();
+                    audio.src = new URL(`sounds/tab/${file}`, window.location.origin + baseUrl).href;
+                    
+                    const loadPromise = new Promise((resolve, reject) => {
+                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load tab audio ${file}`)), { once: true });
+                        setTimeout(() => reject(new Error(`Timeout loading tab audio ${file}`)), 10000);
+                    });
+                    
+                    audio.load();
+                    await loadPromise;
+                    tabAudios[i] = audio;
+                    console.log(`Loaded tab audio ${i}: ${file}`);
+                } catch (error) {
+                    console.error(`Failed to load tab audio file at index ${i}:`, error);
+                    tabAudios[i] = null;
+                }
+            }
+            console.log(`Loaded ${tabAudios.filter(a => a !== null).length}/${tabAudios.length} tab audio files`);
+        }
+        
+        // Load leave audio files if available
+        if (manifest.leave && manifest.leave.length > 0) {
+            leaveAudios = [];
+            for (let i = 0; i < manifest.leave.length; i++) {
+                try {
+                    const file = manifest.leave[i];
+                    const audio = new Audio();
+                    audio.src = new URL(`sounds/leave/${file}`, window.location.origin + baseUrl).href;
+                    
+                    const loadPromise = new Promise((resolve, reject) => {
+                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load leave audio ${file}`)), { once: true });
+                        setTimeout(() => reject(new Error(`Timeout loading leave audio ${file}`)), 10000);
+                    });
+                    
+                    audio.load();
+                    await loadPromise;
+                    leaveAudios[i] = audio;
+                    console.log(`Loaded leave audio ${i}: ${file}`);
+                } catch (error) {
+                    console.error(`Failed to load leave audio file at index ${i}:`, error);
+                    leaveAudios[i] = null;
+                }
+            }
+            console.log(`Loaded ${leaveAudios.filter(a => a !== null).length}/${leaveAudios.length} leave audio files`);
+        }
+        
         // Load mute audio if available
         if (manifest.mute && manifest.mute.length > 0) {
             try {
@@ -913,7 +1069,8 @@ async function loadSounds() {
             }
         }
         
-        soundsLoaded = introAudios.length > 0 || defaultAudios.length > 0 || touchAudios.length > 0 || skyTouchAudios.length > 0;
+        soundsLoaded = introAudios.length > 0 || defaultAudios.length > 0 || touchAudios.length > 0 || 
+                      skyTouchAudios.length > 0 || tabAudios.length > 0 || leaveAudios.length > 0;
         return soundsLoaded;
     } catch (error) {
         console.error('Error loading sounds:', error);
@@ -947,6 +1104,20 @@ async function startAnnouncements() {
             document.addEventListener('click', handleTouch);
             console.log('Canvas not found, added touch handler to document');
         }
+        
+        // Add visibility change handler for tab changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                console.log('Tab changed - playing tab audio');
+                playTabAudio();
+            }
+        });
+        
+        // Add beforeunload handler for leaving the site
+        window.addEventListener('beforeunload', () => {
+            console.log('User leaving site - playing leave audio');
+            playLeaveAudio();
+        });
         
         // Create a start button
         const startButton = document.createElement('button');
@@ -1125,6 +1296,8 @@ function resetAllState() {
     introAudios = [];
     reloadAudios = [];
     skyTouchAudios = [];
+    tabAudios = []; // Reset tab audios
+    leaveAudios = []; // Reset leave audios
     muteAudio = null;
     successAudio = null;
 

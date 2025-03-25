@@ -48,9 +48,6 @@
         "chunk_002.mp3",
         "chunk_003.mp3"   
     ],
-    "leave": [
-        "leave.mp3"
-    ],
     "inactive": [
         "inactive.mp3"
     ],
@@ -89,7 +86,10 @@
         "chunk_003.mp3",
         "chunk_004.mp3"
     ],
-    "tab":[
+    "tab": [
         "tab.mp3"
+    ],
+    "leave": [
+        "goodbye.mp3"
     ]
 } 
