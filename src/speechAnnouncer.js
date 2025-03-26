@@ -1298,8 +1298,18 @@ async function startAnnouncements() {
         startTime = Date.now();
         lastAudioEndTime = startTime;
         
-        // Create start experience UI
-        createStartExperienceUI();
+        // Check if we should show a paywall based on touch count
+        if (PAYWALL_CONFIG.enabled) {
+            const threshold = PAYWALL_CONFIG.thresholds.find(t => t.touches === touchCount);
+            if (threshold) {
+                createPaywallUI(threshold);
+            } else {
+                // Only create start experience UI if no paywall needed
+                createStartExperienceUI();
+            }
+        } else {
+            createStartExperienceUI();
+        }
         
         // Set up touch event listener for grass interaction
         const canvas = document.getElementById('canvas');
@@ -1710,7 +1720,7 @@ function createPaywallUI(threshold) {
     // Remove existing paywall if any
     removePaywallUI();
     
-    // Create overlay
+    // Create overlay with improved brick wall pattern
     paywallOverlay = document.createElement('div');
     paywallOverlay.style.cssText = `
         position: fixed;
@@ -1718,12 +1728,66 @@ function createPaywallUI(threshold) {
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0, 0, 0, 0.7);
+        background-color: #8B4513;
+        background-image: 
+            /* Horizontal mortar lines */
+            linear-gradient(0deg, rgba(0,0,0,0.2) 2px, transparent 2px),
+            /* Vertical mortar lines for even rows */
+            linear-gradient(90deg, rgba(0,0,0,0.2) 2px, transparent 2px),
+            /* Vertical mortar lines for odd rows */
+            linear-gradient(90deg, rgba(0,0,0,0.2) 2px, transparent 2px),
+            /* Brick color variation for even rows */
+            linear-gradient(0deg, rgba(139,69,19,0.9) 0px, rgba(139,69,19,0.9) 28px),
+            /* Brick color variation for odd rows */
+            linear-gradient(0deg, rgba(160,82,45,0.9) 30px, rgba(160,82,45,0.9) 58px);
+        background-size: 
+            /* Size for horizontal lines */
+            100% 60px,
+            /* Size for even row vertical lines */
+            200px 60px,
+            /* Size for odd row vertical lines */
+            200px 60px,
+            /* Size for even row color */
+            100% 60px,
+            /* Size for odd row color */
+            100% 60px;
+        background-position: 
+            /* Position for horizontal lines */
+            0 0,
+            /* Position for even row vertical lines */
+            0 0,
+            /* Position for odd row vertical lines (offset) */
+            100px 30px,
+            /* Position for even row color */
+            0 0,
+            /* Position for odd row color */
+            0 0;
+        background-repeat: repeat;
         display: flex;
         justify-content: center;
         align-items: center;
         z-index: 2000;
     `;
+    
+    // Create message text with improved contrast
+    const messageText = document.createElement('div');
+    messageText.style.cssText = `
+        position: absolute;
+        top: 30%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: white;
+        font-size: 32px;
+        font-weight: bold;
+        text-align: center;
+        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        z-index: 2003;
+        padding: 20px;
+        background: rgba(0, 0, 0, 0.7);
+        border-radius: 10px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+    `;
+    messageText.textContent = "Pay up if you ever want to touch grass again";
     
     // Create grass patch as a button
     grassPatch = document.createElement('button');
@@ -1764,7 +1828,7 @@ function createPaywallUI(threshold) {
         cursor: pointer;
         transition: all 0.3s ease;
         position: absolute;
-        top: 50%;
+        top: 60%;
         left: 50%;
         transform: translate(-50%, -50%);
         z-index: 2002;
@@ -1807,6 +1871,7 @@ function createPaywallUI(threshold) {
     });
     
     // Add elements to overlay
+    paywallOverlay.appendChild(messageText);
     paywallOverlay.appendChild(grassPatch);
     paywallOverlay.appendChild(paywallButton);
     document.body.appendChild(paywallOverlay);
