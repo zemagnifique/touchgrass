@@ -714,7 +714,10 @@ async function playTouchAudio() {
 
 // Function to play tab audio
 async function playTabAudio() {
-    if (!soundsLoaded || tabAudios.length === 0 || isMuted || tabAudioPlayed) return;
+    if (!soundsLoaded || tabAudios.length === 0 || isMuted || hasPlayedTabAudio) {
+        console.log('Cannot play tab audio: soundsLoaded=', soundsLoaded, 'tabAudios.length=', tabAudios.length, 'isMuted=', isMuted, 'hasPlayedTabAudio=', hasPlayedTabAudio);
+        return;
+    }
     
     try {
         // Stop any currently playing audio
@@ -733,7 +736,13 @@ async function playTabAudio() {
         // Get a random tab audio
         const tabIndex = Math.floor(Math.random() * tabAudios.length);
         currentAudio = tabAudios[tabIndex];
+        if (!currentAudio) {
+            console.error('Tab audio at index', tabIndex, 'is null');
+            return;
+        }
         currentAudio.currentTime = 0;
+        
+        console.log('Playing tab audio', tabIndex);
         
         const playPromise = new Promise(resolve => {
             const onEnded = () => {
@@ -743,7 +752,6 @@ async function playTabAudio() {
             currentAudio.addEventListener('ended', onEnded);
         });
         
-        console.log(`Playing tab audio ${tabIndex}`);
         await currentAudio.play();
         
         // Wait for the audio to finish
@@ -751,7 +759,8 @@ async function playTabAudio() {
         
         audioPlaying = false;
         lastAudioEndTime = Date.now();
-        tabAudioPlayed = true; // Mark tab audio as played
+        hasPlayedTabAudio = true;
+        saveState(); // Save state after playing
         
     } catch (error) {
         console.error('Failed to play tab audio:', error);
@@ -1327,7 +1336,7 @@ async function startAnnouncements() {
         // Add visibility change handler for tab changes
         document.addEventListener('visibilitychange', () => {
             if (document.hidden) {
-                console.log('Tab changed - playing tab audio and pausing default audio');
+                console.log('Tab changed - attempting to play tab audio');
                 isInTab = true;
                 // Stop any currently playing default audio
                 if (currentAudio && !currentAudio.paused) {
@@ -1338,11 +1347,11 @@ async function startAnnouncements() {
                     clearTimeout(nextAudioTimeoutId);
                     nextAudioTimeoutId = null;
                 }
-                // Only play tab audio if we haven't played it yet and it hasn't been played in a previous session
+                // Only try to play tab audio if it hasn't been played before
                 if (!hasPlayedTabAudio) {
                     playTabAudio();
-                    hasPlayedTabAudio = true;
-                    saveState(); // Save state after playing tab audio
+                } else {
+                    console.log('Tab audio already played, skipping');
                 }
             } else {
                 console.log('Returned to tab - resuming audio');
@@ -1512,9 +1521,9 @@ function resetAllState() {
     isFirstLoad = true;
     lastAudioEndTime = 0;
     audioPlaying = false;
+    hasPlayedTabAudio = false; // Reset tab audio state
 
     // Reset tab state
-    hasPlayedTabAudio = false;
     isInTab = false;
     tabAudioPlayed = false;
     
