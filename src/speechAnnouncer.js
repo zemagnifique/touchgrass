@@ -155,16 +155,17 @@ function loadState() {
         if (savedState) {
             const state = JSON.parse(savedState);
             touchCount = state.touchCount || 0;
-            skyTouchCount = state.skyTouchCount || 0; // Load sky touch count
+            skyTouchCount = state.skyTouchCount || 0;
             playedTouchAudios = new Set(state.playedTouchAudios || []);
-            playedSkyTouchAudios = new Set(state.playedSkyTouchAudios || []); // Load sky touch audios
+            playedSkyTouchAudios = new Set(state.playedSkyTouchAudios || []);
             defaultAudioIndex = state.defaultAudioIndex || 0;
             introAudioIndex = state.introAudioIndex || 0;
             hasUserTouchedGrass = state.hasUserTouchedGrass || false;
-            hasUserTouchedSky = state.hasUserTouchedSky || false; // Load sky touch flag
+            hasUserTouchedSky = state.hasUserTouchedSky || false;
+            hasPlayedTabAudio = state.hasPlayedTabAudio || false; // Load tab audio state
             isFirstLoad = false;
             
-            console.log(`Loaded state: touchCount=${touchCount}, skyTouchCount=${skyTouchCount}, defaultIndex=${defaultAudioIndex}, introIndex=${introAudioIndex}, hasUserTouchedGrass=${hasUserTouchedGrass}, hasUserTouchedSky=${hasUserTouchedSky}`);
+            console.log(`Loaded state: touchCount=${touchCount}, skyTouchCount=${skyTouchCount}, defaultIndex=${defaultAudioIndex}, introIndex=${introAudioIndex}, hasUserTouchedGrass=${hasUserTouchedGrass}, hasUserTouchedSky=${hasUserTouchedSky}, hasPlayedTabAudio=${hasPlayedTabAudio}`);
             console.log(`Played touch audios: ${Array.from(playedTouchAudios).join(',')}`);
             console.log(`Played sky touch audios: ${Array.from(playedSkyTouchAudios).join(',')}`);
         }
@@ -178,13 +179,14 @@ function saveState() {
     try {
         const state = {
             touchCount: touchCount,
-            skyTouchCount: skyTouchCount, // Save sky touch count
+            skyTouchCount: skyTouchCount,
             playedTouchAudios: Array.from(playedTouchAudios),
-            playedSkyTouchAudios: Array.from(playedSkyTouchAudios), // Save sky touch audios
+            playedSkyTouchAudios: Array.from(playedSkyTouchAudios),
             defaultAudioIndex: defaultAudioIndex,
             introAudioIndex: introAudioIndex,
             hasUserTouchedGrass: hasUserTouchedGrass,
-            hasUserTouchedSky: hasUserTouchedSky // Save sky touch flag
+            hasUserTouchedSky: hasUserTouchedSky,
+            hasPlayedTabAudio: hasPlayedTabAudio // Save tab audio state
         };
         localStorage.setItem('touchgrass_state', JSON.stringify(state));
     } catch (error) {
@@ -1336,15 +1338,15 @@ async function startAnnouncements() {
                     clearTimeout(nextAudioTimeoutId);
                     nextAudioTimeoutId = null;
                 }
-                // Only play tab audio if we haven't played it yet
+                // Only play tab audio if we haven't played it yet and it hasn't been played in a previous session
                 if (!hasPlayedTabAudio) {
                     playTabAudio();
                     hasPlayedTabAudio = true;
+                    saveState(); // Save state after playing tab audio
                 }
             } else {
                 console.log('Returned to tab - resuming audio');
                 isInTab = false;
-                hasPlayedTabAudio = false; // Reset the flag when returning to tab
                 // Resume audio playback
                 playNextAppropriateAudio();
             }
@@ -1512,10 +1514,10 @@ function resetAllState() {
     audioPlaying = false;
 
     // Reset tab state
+    hasPlayedTabAudio = false;
     isInTab = false;
-    hasPlayedTabAudio = false; // Reset the tab audio flag
-    tabAudioPlayed = false; // Reset tab audio state
-
+    tabAudioPlayed = false;
+    
     // Reset start experience state
     if (startExperienceButton) {
         startExperienceButton.remove();
@@ -1726,7 +1728,7 @@ function createPaywallUI(threshold) {
         position: fixed;
         top: 0;
         left: 0;
-        width: 100%;
+        width: 99%;
         height: 100%;
         background-color: #8B4513;
         background-image: 
@@ -1789,33 +1791,6 @@ function createPaywallUI(threshold) {
     `;
     messageText.textContent = "Pay up if you ever want to touch grass again";
     
-    // Create grass patch as a button
-    grassPatch = document.createElement('button');
-    grassPatch.style.cssText = `
-        padding: 15px 30px;
-        font-size: 24px;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: 
-            linear-gradient(45deg, #2d5a27 25%, transparent 25%),
-            linear-gradient(-45deg, #2d5a27 25%, transparent 25%),
-            linear-gradient(45deg, transparent 75%, #2d5a27 75%),
-            linear-gradient(-45deg, transparent 75%, #2d5a27 75%);
-        background-size: 20px 20px;
-        background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-        background-color: #3a7a33;
-        box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
-        z-index: 2001;
-    `;
-    grassPatch.textContent = '';
-    
     // Create pay button
     paywallButton = document.createElement('button');
     paywallButton.style.cssText = `
@@ -1865,14 +1840,21 @@ function createPaywallUI(threshold) {
         }
     });
     
-    grassPatch.addEventListener('click', () => {
-        speakTTS(threshold.messages.grassClick);
-        removePaywallUI();
-    });
+    // Define the grass click handler function
+    const handleGrassClick = (event) => {
+        if (currentPaywall && !paywallOverlay.contains(event.target)) {
+            speakTTS(threshold.messages.grassClick);
+            removePaywallUI();
+            // Remove the event listener since we're done with it
+            document.removeEventListener('click', handleGrassClick);
+        }
+    };
+    
+    // Add click handler for grass clicks behind the overlay
+    document.addEventListener('click', handleGrassClick);
     
     // Add elements to overlay
     paywallOverlay.appendChild(messageText);
-    paywallOverlay.appendChild(grassPatch);
     paywallOverlay.appendChild(paywallButton);
     document.body.appendChild(paywallOverlay);
     
@@ -1893,10 +1875,6 @@ function removePaywallUI() {
     if (paywallButton) {
         paywallButton.remove();
         paywallButton = null;
-    }
-    if (grassPatch) {
-        grassPatch.remove();
-        grassPatch = null;
     }
     if (paywallTimeout) {
         clearTimeout(paywallTimeout);
