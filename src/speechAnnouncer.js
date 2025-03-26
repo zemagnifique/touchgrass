@@ -1782,7 +1782,7 @@ function createPaywallUI(threshold) {
     `;
 
     // Create grass patch for $2, $5, and $10 paywalls
-    if (threshold.amount === 2 || threshold.amount === 5 || threshold.amount === 10) {
+    if (threshold.amount === 2 || threshold.amount === 5) {
         grassPatch = document.createElement('button');
         grassPatch.style.cssText = `
             padding: 15px 30px;
@@ -1832,31 +1832,31 @@ function createPaywallUI(threshold) {
         // }
         // 
         // Add hover effect
-        grassPatch.addEventListener('mouseenter', () => {
+        // grassPatch.addEventListener('mouseenter', () => {
             // grassPatch.style.transform = threshold.amount === 10 ? 
                 // 'translate(-50%, -50%) scale(1.1)' : 'scale(1.1)';
-            grassPatch.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.4)';
-            if (threshold.amount === 10) {
-                grassPatch.style.backgroundImage = `
-                    radial-gradient(circle at 30% 50%, #3d8b41 1px, transparent 1px),
-                    radial-gradient(circle at 70% 50%, #3d8b41 1px, transparent 1px),
-                    radial-gradient(circle at 50% 50%, #45a049 1px, transparent 1px)
-                `;
-            }
-        });
-        
-        grassPatch.addEventListener('mouseleave', () => {
+            // grassPatch.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.4)';
+            // if (threshold.amount === 10) {
+                // grassPatch.style.backgroundImage = `
+                    // radial-gradient(circle at 30% 50%, #3d8b41 1px, transparent 1px),
+                    // radial-gradient(circle at 70% 50%, #3d8b41 1px, transparent 1px),
+                    // radial-gradient(circle at 50% 50%, #45a049 1px, transparent 1px)
+                // `;
+            // }
+        // });
+        // 
+        // grassPatch.addEventListener('mouseleave', () => {
             // grassPatch.style.transform = threshold.amount === 10 ? 
                 // 'translate(-50%, -50%) scale(1)' : 'scale(1)';
-            grassPatch.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
-            if (threshold.amount === 10) {
-                grassPatch.style.backgroundImage = `
-                    radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
-                    radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
-                    radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px)
-                `;
-            }
-        });
+            // grassPatch.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+            // if (threshold.amount === 10) {
+                // grassPatch.style.backgroundImage = `
+                    // radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
+                    // radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
+                    // radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px)
+                // `;
+            // }
+        // });
         
         // Add click handler
         grassPatch.addEventListener('click', () => {
