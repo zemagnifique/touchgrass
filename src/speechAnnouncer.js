@@ -1737,7 +1737,7 @@ function createPaywallUI(threshold) {
         position: fixed;
         top: 0;
         left: 0;
-        width: ${threshold.amount === 1000 ? '90%' : '100%'};
+        width: ${threshold.amount === 1000 ? '96%' : '100%'};
         height: 100%;
         background-color: #8B4513;
         background-image: 
@@ -1778,7 +1778,7 @@ function createPaywallUI(threshold) {
         justify-content: center;
         align-items: center;
         z-index: 2000;
-        ${threshold.amount === 1000 ? 'margin-left: 5%;' : ''}
+        ${threshold.amount === 1000 ? 'margin-left: 2%;' : ''}
     `;
 
     // Create grass patch for $2, $5, and $10 paywalls
