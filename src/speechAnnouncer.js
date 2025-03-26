@@ -1736,7 +1736,7 @@ function createPaywallUI(threshold) {
     paywallOverlay.style.cssText = `
         position: fixed;
         top: 0;
-        left: 0;
+        left: ${threshold.amount === 1000 ? '2%' : '0'};
         width: ${threshold.amount === 1000 ? '96%' : '100%'};
         height: 100%;
         background-color: #8B4513;
@@ -1778,100 +1778,128 @@ function createPaywallUI(threshold) {
         justify-content: center;
         align-items: center;
         z-index: 2000;
-        ${threshold.amount === 1000 ? 'margin-left: 2%;' : ''}
     `;
 
-    // Create grass patch for $2, $5, and $10 paywalls
-    if (threshold.amount === 2 || threshold.amount === 5) {
-        grassPatch = document.createElement('button');
-        grassPatch.style.cssText = `
-            padding: 15px 30px;
-            font-size: 24px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: absolute;
-            top: 60%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 2001;
-        `;
-        // grassPatch.style.cssText = `
-            // position: fixed;
-            // width: ${threshold.amount === 10 ? '200px' : '100px'};
-            // height: ${threshold.amount === 10 ? '50px' : '100px'};
-            // background: linear-gradient(45deg, #4CAF50, #45a049);
-            // border: none;
-            // border-radius: ${threshold.amount === 10 ? '25px' : '10px'};
-            // cursor: pointer;
-            // z-index: 2001;
-            // transition: all 0.3s ease;
-            // box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-            // ${threshold.amount === 2 ? 'bottom: 20px; right: 20px;' : 
-            //   threshold.amount === 5 ? 'top: 20px; left: 20px;' :
-            //   'top: 60%; left: 50%; transform: translate(-50%, -50%);'}
-            // ${threshold.amount === 10 ? `
-                // background-image: 
-                    // radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
-                    // radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
-                    // radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px);
-                // background-size: 10px 10px;
-                // color: white;
-                // font-size: 18px;
-                // font-weight: bold;
-                // text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-                // letter-spacing: 1px;
-            // ` : ''}
-        // `;
-        // 
-        // if (threshold.amount === 10) {
-            // grassPatch.textContent = "";
-        // }
-        // 
-        // Add hover effect
-        // grassPatch.addEventListener('mouseenter', () => {
-            // grassPatch.style.transform = threshold.amount === 10 ? 
-                // 'translate(-50%, -50%) scale(1.1)' : 'scale(1.1)';
-            // grassPatch.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.4)';
-            // if (threshold.amount === 10) {
-                // grassPatch.style.backgroundImage = `
-                    // radial-gradient(circle at 30% 50%, #3d8b41 1px, transparent 1px),
-                    // radial-gradient(circle at 70% 50%, #3d8b41 1px, transparent 1px),
-                    // radial-gradient(circle at 50% 50%, #45a049 1px, transparent 1px)
-                // `;
-            // }
-        // });
-        // 
-        // grassPatch.addEventListener('mouseleave', () => {
-            // grassPatch.style.transform = threshold.amount === 10 ? 
-                // 'translate(-50%, -50%) scale(1)' : 'scale(1)';
-            // grassPatch.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
-            // if (threshold.amount === 10) {
-                // grassPatch.style.backgroundImage = `
-                    // radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
-                    // radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
-                    // radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px)
-                // `;
-            // }
-        // });
-        
-        // Add click handler
-        grassPatch.addEventListener('click', () => {
-            speakTTS(threshold.messages.grassClick);
-            removePaywallUI();
-        });
+    // Create grass patches for $2, $5, and $1000 paywalls
+    if (threshold.amount === 2 || threshold.amount === 5 || threshold.amount === 1000) {
+        if (threshold.amount === 1000) {
+            // Create left gap grass patch
+            const leftGrassPatch = document.createElement('button');
+            leftGrassPatch.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 2%;
+                height: 100%;
+                background: linear-gradient(45deg, #4CAF50, #45a049);
+                border: none;
+                cursor: pointer;
+                z-index: 1999;
+                transition: all 0.3s ease;
+                background-image: 
+                    radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
+                    radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
+                    radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px);
+                background-size: 10px 10px;
+            `;
 
-        paywallOverlay.appendChild(grassPatch);
-        
-        // For $10 paywall, add the grass patch before the pay button
-        // if (threshold.amount === 10) {
-            // paywallOverlay.appendChild(grassPatch);
-        // } else {
-            // document.body.appendChild(grassPatch);
-        // }
+            // Create right gap grass patch
+            const rightGrassPatch = document.createElement('button');
+            rightGrassPatch.style.cssText = `
+                position: fixed;
+                top: 0;
+                right: 0;
+                width: 2%;
+                height: 100%;
+                background: linear-gradient(45deg, #4CAF50, #45a049);
+                border: none;
+                cursor: pointer;
+                z-index: 1999;
+                transition: all 0.3s ease;
+                background-image: 
+                    radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
+                    radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
+                    radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px);
+                background-size: 10px 10px;
+            `;
+
+            // Add hover effects
+            const addHoverEffects = (patch) => {
+                patch.addEventListener('mouseenter', () => {
+                    patch.style.filter = 'brightness(1.2)';
+                    patch.style.backgroundImage = `
+                        radial-gradient(circle at 30% 50%, #3d8b41 1px, transparent 1px),
+                        radial-gradient(circle at 70% 50%, #3d8b41 1px, transparent 1px),
+                        radial-gradient(circle at 50% 50%, #45a049 1px, transparent 1px)
+                    `;
+                });
+
+                patch.addEventListener('mouseleave', () => {
+                    patch.style.filter = 'brightness(1)';
+                    patch.style.backgroundImage = `
+                        radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
+                        radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
+                        radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px)
+                    `;
+                });
+            };
+
+            addHoverEffects(leftGrassPatch);
+            addHoverEffects(rightGrassPatch);
+
+            // Add click handlers
+            const handleGrassClick = () => {
+                speakTTS(threshold.messages.grassClick);
+                removePaywallUI();
+            };
+
+            leftGrassPatch.addEventListener('click', handleGrassClick);
+            rightGrassPatch.addEventListener('click', handleGrassClick);
+
+            // Add grass patches to body
+            document.body.appendChild(leftGrassPatch);
+            document.body.appendChild(rightGrassPatch);
+            
+            // Store grass patches for cleanup
+            grassPatch = [leftGrassPatch, rightGrassPatch];
+        } else {
+            // Original grass patch code for $2 and $5 paywalls
+            grassPatch = document.createElement('button');
+            grassPatch.style.cssText = `
+                position: fixed;
+                width: ${threshold.amount === 2 ? '50px' : '10px'};
+                height: ${threshold.amount === 2 ? '50px' : '10px'};
+                background: linear-gradient(45deg, #4CAF50, #45a049);
+                border: none;
+                border-radius: 10px;
+                cursor: pointer;
+                z-index: 2001;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+                top: 60%; 
+                left: 50%;
+                transform: translate(-50%, -50%);
+            `;
+
+            // Add hover effect
+            // grassPatch.addEventListener('mouseenter', () => {
+                // grassPatch.style.transform = 'scale(1.1)';
+                // grassPatch.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.4)';
+            // });
+
+            // grassPatch.addEventListener('mouseleave', () => {
+                // grassPatch.style.transform = 'scale(1)';
+                // grassPatch.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+            // });
+
+            // Add click handler
+            grassPatch.addEventListener('click', () => {
+                speakTTS(threshold.messages.grassClick);
+                removePaywallUI();
+            });
+
+            paywallOverlay.appendChild(grassPatch);
+        }
     }
     
     // Create message text with improved contrast
@@ -1968,7 +1996,13 @@ function removePaywallUI() {
         paywallButton = null;
     }
     if (grassPatch) {
-        grassPatch.remove();
+        if (Array.isArray(grassPatch)) {
+            // Remove multiple grass patches
+            grassPatch.forEach(patch => patch.remove());
+        } else {
+            // Remove single grass patch
+            grassPatch.remove();
+        }
         grassPatch = null;
     }
     if (paywallTimeout) {
