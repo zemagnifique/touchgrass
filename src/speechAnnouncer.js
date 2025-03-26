@@ -93,6 +93,61 @@ let startExperienceOverlay = null;
 let startExperienceClickCount = 0;
 let startExperienceClickTimeout = null;
 
+// Paywall configuration
+const PAYWALL_CONFIG = {
+    enabled: true,
+    thresholds: [
+        { touches: 5, amount: 2, messages: {
+            initial: "Fine, you win that round. Now here's a paywall. Two dollars, please. Don't do it.",
+            hover1: "Ha! It moved—don't waste your time chasing it!",
+            hover2: "Still after it? Look, there's grass where it started—be smart for once!",
+            hover3: "Caught it, huh? Two bucks if you're that desperate—go ahead, I dare you.",
+            grassClick: "Oh, you found the grass trick! No money spent, you sly cheapskate. Carry on.",
+            payClick: "You're actually paying two bucks? Oh, you sweet, naive fool.",
+            paySuccess: "Two bucks gone. Here's pink grass. Happy now, you big spender?",
+            payCancel: "Canceled it? Smart move—or just too broke to commit."
+        }},
+        { touches: 10, amount: 5, messages: {
+            initial: "Alright, now it's five bucks. Don't test me—or do, I'm not your babysitter.",
+            hover1: "Off it goes! Don't bother, the grass is right there!",
+            hover2: "Still chasing? Grass is free, you stubborn mule—use your eyes!",
+            hover3: "Got it pinned? Five bucks to throw away—your funeral.",
+            grassClick: "Grass dodge again! Five bucks saved, you thrifty little gremlin.",
+            payClick: "Five dollars? You're a saint—or a sucker.",
+            paySuccess: "Five bucks! Watch the grass dance, you mad, rich lunatic.",
+            payCancel: "Canceled five? Probably for the best, wallet warrior."
+        }},
+        { touches: 15, amount: 10, messages: {
+            initial: "Ten bucks now! You're insane—and I love it. Don't pay, trust me.",
+            hover1: "There it goes! Grass is waiting—don't be a fool!",
+            hover2: "Still at it? Grass dodge is right there, you relentless dope!",
+            hover3: "Caught it? Ten bucks to waste—go on, prove you're that crazy.",
+            grassClick: "Dodged ten bucks with the grass! You're a legend—or just cheap.",
+            payClick: "Ten whole dollars! I'm retiring, thanks to you.",
+            paySuccess: "Ten dollars! Watch the grass dance, you mad, rich lunatic.",
+            payCancel: "Canceled ten? Probably for the best, wallet warrior."
+        }},
+        { touches: 20, amount: 1000, messages: {
+            initial: "One thousand dollars. Yes, really. Dodge it, you maniac—no one's that loaded!",
+            hover1: "It's running! Grass is your savior—don't be an idiot!",
+            hover2: "Still chasing a grand? Grass dodge is staring at you, you greedy nutcase!",
+            hover3: "Pinned it down? A thousand bucks—go ahead, you unhinged money pit.",
+            grassClick: "Grass dodge on a grand! You're my hero, you tightfisted genius.",
+            payClick: "A thousand dollars? You're insane. Fine, name your legacy.",
+            paySuccess: "A thousand dollars! Your name's in the sky—forever pointless. I'm done.",
+            payCancel: "Canceled a grand? Sanity prevails—barely."
+        }}
+    ]
+};
+
+// Paywall state tracking
+let currentPaywall = null;
+let paywallHoverCount = 0;
+let paywallButton = null;
+let paywallOverlay = null;
+let grassPatch = null;
+let paywallTimeout = null;
+
 // Load state from localStorage if available
 function loadState() {
     try {
@@ -139,6 +194,11 @@ function saveState() {
 
 // Function to handle a touch event
 async function handleTouch(event) {
+    // If paywall is active, don't process touches
+    if (currentPaywall) {
+        return;
+    }
+
     // If start experience button is still showing, don't process touches
     if (startExperienceButton && startExperienceButton.parentElement) {
         return;
@@ -219,6 +279,14 @@ async function handleTouch(event) {
         
         // Play a touch audio if available
         await playTouchAudio();
+    }
+
+    // Check for paywall triggers after incrementing touch count
+    if (PAYWALL_CONFIG.enabled) {
+        const threshold = PAYWALL_CONFIG.thresholds.find(t => t.touches === touchCount);
+        if (threshold) {
+            createPaywallUI(threshold);
+        }
     }
 }
 
@@ -1453,6 +1521,9 @@ function resetAllState() {
         startExperienceClickTimeout = null;
     }
 
+    // Reset paywall state
+    removePaywallUI();
+
     // Clear localStorage
     localStorage.removeItem('touchgrass_state');
 
@@ -1632,4 +1703,189 @@ async function playStartExperienceAlt() {
         audioPlaying = false;
         lastAudioEndTime = Date.now();
     }
+}
+
+// Function to create paywall UI
+function createPaywallUI(threshold) {
+    // Remove existing paywall if any
+    removePaywallUI();
+    
+    // Create overlay
+    paywallOverlay = document.createElement('div');
+    paywallOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 2000;
+    `;
+    
+    // Create grass patch as a button
+    grassPatch = document.createElement('button');
+    grassPatch.style.cssText = `
+        padding: 15px 30px;
+        font-size: 24px;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: 
+            linear-gradient(45deg, #2d5a27 25%, transparent 25%),
+            linear-gradient(-45deg, #2d5a27 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, #2d5a27 75%),
+            linear-gradient(-45deg, transparent 75%, #2d5a27 75%);
+        background-size: 20px 20px;
+        background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+        background-color: #3a7a33;
+        box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+        z-index: 2001;
+    `;
+    grassPatch.textContent = '';
+    
+    // Create pay button
+    paywallButton = document.createElement('button');
+    paywallButton.style.cssText = `
+        padding: 15px 30px;
+        font-size: 24px;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 2002;
+    `;
+    paywallButton.textContent = `Pay $${threshold.amount}`;
+    
+    // Add hover handlers
+    paywallButton.addEventListener('mouseenter', () => {
+        if (paywallHoverCount < 2) {
+            // Move button to random position
+            const buttonRect = paywallButton.getBoundingClientRect();
+            const maxX = window.innerWidth - buttonRect.width;
+            const maxY = window.innerHeight - buttonRect.height;
+            const newX = Math.random() * maxX;
+            const newY = Math.random() * maxY;
+            
+            paywallButton.style.left = `${newX}px`;
+            paywallButton.style.top = `${newY}px`;
+            
+            // Play hover message
+            speakTTS(threshold.messages[`hover${paywallHoverCount + 1}`]);
+            
+            paywallHoverCount++;
+        } else {
+            // On third hover, button stays put
+            speakTTS(threshold.messages.hover3);
+        }
+    });
+    
+    // Add click handlers
+    paywallButton.addEventListener('click', () => {
+        if (paywallHoverCount >= 2) {
+            handlePayment(threshold);
+        }
+    });
+    
+    grassPatch.addEventListener('click', () => {
+        speakTTS(threshold.messages.grassClick);
+        removePaywallUI();
+    });
+    
+    // Add elements to overlay
+    paywallOverlay.appendChild(grassPatch);
+    paywallOverlay.appendChild(paywallButton);
+    document.body.appendChild(paywallOverlay);
+    
+    // Store current paywall info
+    currentPaywall = threshold;
+    paywallHoverCount = 0;
+    
+    // Play initial message
+    speakTTS(threshold.messages.initial);
+}
+
+// Function to remove paywall UI
+function removePaywallUI() {
+    if (paywallOverlay) {
+        paywallOverlay.remove();
+        paywallOverlay = null;
+    }
+    if (paywallButton) {
+        paywallButton.remove();
+        paywallButton = null;
+    }
+    if (grassPatch) {
+        grassPatch.remove();
+        grassPatch = null;
+    }
+    if (paywallTimeout) {
+        clearTimeout(paywallTimeout);
+        paywallTimeout = null;
+    }
+    currentPaywall = null;
+    paywallHoverCount = 0;
+}
+
+// Function to handle payment
+async function handlePayment(threshold) {
+    speakTTS(threshold.messages.payClick);
+    
+    if (threshold.amount === 1000) {
+        // Special handling for $1000 paywall
+        const name = prompt("Enter your name for the sky:");
+        if (!name) {
+            speakTTS("No name? Then no sky for you. Pay anyway? Too late, dimwit.");
+            return;
+        }
+        // Here you would integrate with Stripe or other payment processor
+        // For now, we'll just simulate success
+        speakTTS(threshold.messages.paySuccess.replace('[NAME]', name));
+    } else {
+        // Here you would integrate with Stripe or other payment processor
+        // For now, we'll just simulate success
+        speakTTS(threshold.messages.paySuccess);
+    }
+    
+    removePaywallUI();
+}
+
+// Function to speak text using Web Speech API
+function speakTTS(text) {
+    // Cancel any ongoing speech
+    window.speechSynthesis.cancel();
+    
+    // Create new utterance
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    // Set voice properties
+    utterance.pitch = 0.9;
+    utterance.rate = 0.85;
+    
+    // Try to find an American English voice
+    const voices = window.speechSynthesis.getVoices();
+    const americanVoice = voices.find(voice => 
+        voice.lang.includes('en-US') || voice.lang.includes('en')
+    );
+    
+    if (americanVoice) {
+        utterance.voice = americanVoice;
+    }
+    
+    // Speak the text
+    window.speechSynthesis.speak(utterance);
 } 
