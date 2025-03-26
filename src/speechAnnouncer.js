@@ -1737,7 +1737,7 @@ function createPaywallUI(threshold) {
         position: fixed;
         top: 0;
         left: 0;
-        width: 99%;
+        width: ${threshold.amount === 1000 ? '90%' : '100%'};
         height: 100%;
         background-color: #8B4513;
         background-image: 
@@ -1778,7 +1778,101 @@ function createPaywallUI(threshold) {
         justify-content: center;
         align-items: center;
         z-index: 2000;
+        ${threshold.amount === 1000 ? 'margin-left: 5%;' : ''}
     `;
+
+    // Create grass patch for $2, $5, and $10 paywalls
+    if (threshold.amount === 2 || threshold.amount === 5 || threshold.amount === 10) {
+        grassPatch = document.createElement('button');
+        grassPatch.style.cssText = `
+            padding: 15px 30px;
+            font-size: 24px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2001;
+        `;
+        // grassPatch.style.cssText = `
+            // position: fixed;
+            // width: ${threshold.amount === 10 ? '200px' : '100px'};
+            // height: ${threshold.amount === 10 ? '50px' : '100px'};
+            // background: linear-gradient(45deg, #4CAF50, #45a049);
+            // border: none;
+            // border-radius: ${threshold.amount === 10 ? '25px' : '10px'};
+            // cursor: pointer;
+            // z-index: 2001;
+            // transition: all 0.3s ease;
+            // box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            // ${threshold.amount === 2 ? 'bottom: 20px; right: 20px;' : 
+            //   threshold.amount === 5 ? 'top: 20px; left: 20px;' :
+            //   'top: 60%; left: 50%; transform: translate(-50%, -50%);'}
+            // ${threshold.amount === 10 ? `
+                // background-image: 
+                    // radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
+                    // radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
+                    // radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px);
+                // background-size: 10px 10px;
+                // color: white;
+                // font-size: 18px;
+                // font-weight: bold;
+                // text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+                // letter-spacing: 1px;
+            // ` : ''}
+        // `;
+        // 
+        // if (threshold.amount === 10) {
+            // grassPatch.textContent = "";
+        // }
+        // 
+        // Add hover effect
+        grassPatch.addEventListener('mouseenter', () => {
+            // grassPatch.style.transform = threshold.amount === 10 ? 
+                // 'translate(-50%, -50%) scale(1.1)' : 'scale(1.1)';
+            grassPatch.style.boxShadow = '0 6px 12px rgba(0, 0, 0, 0.4)';
+            if (threshold.amount === 10) {
+                grassPatch.style.backgroundImage = `
+                    radial-gradient(circle at 30% 50%, #3d8b41 1px, transparent 1px),
+                    radial-gradient(circle at 70% 50%, #3d8b41 1px, transparent 1px),
+                    radial-gradient(circle at 50% 50%, #45a049 1px, transparent 1px)
+                `;
+            }
+        });
+        
+        grassPatch.addEventListener('mouseleave', () => {
+            // grassPatch.style.transform = threshold.amount === 10 ? 
+                // 'translate(-50%, -50%) scale(1)' : 'scale(1)';
+            grassPatch.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.3)';
+            if (threshold.amount === 10) {
+                grassPatch.style.backgroundImage = `
+                    radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
+                    radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
+                    radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px)
+                `;
+            }
+        });
+        
+        // Add click handler
+        grassPatch.addEventListener('click', () => {
+            speakTTS(threshold.messages.grassClick);
+            removePaywallUI();
+        });
+
+        paywallOverlay.appendChild(grassPatch);
+        
+        // For $10 paywall, add the grass patch before the pay button
+        // if (threshold.amount === 10) {
+            // paywallOverlay.appendChild(grassPatch);
+        // } else {
+            // document.body.appendChild(grassPatch);
+        // }
+    }
     
     // Create message text with improved contrast
     const messageText = document.createElement('div');
@@ -1815,7 +1909,7 @@ function createPaywallUI(threshold) {
         top: 60%;
         left: 50%;
         transform: translate(-50%, -50%);
-        z-index: 2002;
+        z-index: ${threshold.amount === 10 ? '2004' : '2002'};
     `;
     paywallButton.textContent = `Pay $${threshold.amount}`;
     
@@ -1831,6 +1925,7 @@ function createPaywallUI(threshold) {
             
             paywallButton.style.left = `${newX}px`;
             paywallButton.style.top = `${newY}px`;
+            paywallButton.style.transform = 'none';
             
             // Play hover message
             speakTTS(threshold.messages[`hover${paywallHoverCount + 1}`]);
@@ -1848,19 +1943,6 @@ function createPaywallUI(threshold) {
             handlePayment(threshold);
         }
     });
-    
-    // Define the grass click handler function
-    const handleGrassClick = (event) => {
-        if (currentPaywall && !paywallOverlay.contains(event.target)) {
-            speakTTS(threshold.messages.grassClick);
-            removePaywallUI();
-            // Remove the event listener since we're done with it
-            document.removeEventListener('click', handleGrassClick);
-        }
-    };
-    
-    // Add click handler for grass clicks behind the overlay
-    document.addEventListener('click', handleGrassClick);
     
     // Add elements to overlay
     paywallOverlay.appendChild(messageText);
@@ -1884,6 +1966,10 @@ function removePaywallUI() {
     if (paywallButton) {
         paywallButton.remove();
         paywallButton = null;
+    }
+    if (grassPatch) {
+        grassPatch.remove();
+        grassPatch = null;
     }
     if (paywallTimeout) {
         clearTimeout(paywallTimeout);
