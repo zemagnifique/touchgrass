@@ -38,8 +38,8 @@ def split_audio_on_silence(input_file, output_dir, min_silence_len=2000, silence
         print(f"Exported: {output_file}")
 
 if __name__ == "__main__":
-    input_file = "public/sounds/paywall/10/10.mp3"
-    output_dir = "public/sounds/paywall/10"
+    input_file = "public/sounds/paywall/1000/1000.mp3"
+    output_dir = "public/sounds/paywall/1000"
     
     split_audio_on_silence(input_file, output_dir)
     print("Audio splitting completed!") 
