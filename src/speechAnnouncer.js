@@ -1837,14 +1837,14 @@ function createPaywallUI(threshold) {
                 left: 0;
                 width: 2%;
                 height: 100%;
-                background: linear-gradient(45deg, #4CAF50, #45a049);
+                // background: linear-gradient(45deg, #4CAF50, #45a049);
                 border: none;
                 cursor: pointer;
                 z-index: 1999;
                 transition: all 0.3s ease;
-                background-image: url('${window.location.origin + baseUrl}textures/grass.png');
-                background-size: cover;
-                background-position: center;
+                opacity:0.1;
+                // background-size: cover;
+                // background-position: center;
             `;
 
             // Create right gap grass patch
@@ -1855,31 +1855,30 @@ function createPaywallUI(threshold) {
                 right: 0;
                 width: 2%;
                 height: 100%;
-                background: linear-gradient(45deg, #4CAF50, #45a049);
                 border: none;
                 cursor: pointer;
                 z-index: 1999;
                 transition: all 0.3s ease;
-                background-image: url('${window.location.origin + baseUrl}textures/grass.png');
-                background-size: cover;
-                background-position: center;
+                opacity:0.1;
+                // background-size: cover;
+                // background-position: center;
             `;
 
             // Add hover effects
-            const addHoverEffects = (patch) => {
-                patch.addEventListener('mouseenter', () => {
-                    patch.style.filter = 'brightness(1.2)';
-                    patch.style.backgroundImage = `url('${window.location.origin + baseUrl}textures/grass.png')`;
-                });
+            // const addHoverEffects = (patch) => {
+                // patch.addEventListener('mouseenter', () => {
+                    // patch.style.filter = 'brightness(1.2)';
+                    // patch.style.backgroundImage = `url('${window.location.origin + baseUrl}textures/grass.png')`;
+                // });
 
-                patch.addEventListener('mouseleave', () => {
-                    patch.style.filter = 'brightness(1)';
-                    patch.style.backgroundImage = `url('${window.location.origin + baseUrl}textures/grass.png')`;
-                });
-            };
+                // patch.addEventListener('mouseleave', () => {
+                    // patch.style.filter = 'brightness(1)';
+                    // patch.style.backgroundImage = `url('${window.location.origin + baseUrl}textures/grass.png')`;
+                // });
+            // };
 
-            addHoverEffects(leftGrassPatch);
-            addHoverEffects(rightGrassPatch);
+            // addHoverEffects(leftGrassPatch);
+            // addHoverEffects(rightGrassPatch);
 
             // Add click handlers
             const handleGrassClick = () => {
