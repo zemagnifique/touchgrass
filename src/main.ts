@@ -17,9 +17,9 @@ interface StatsWithDOM {
 // Portal configuration
 const PORTAL_CONFIG = {
 	enabled: true, // Set to false to completely disable the portal
-	position: { x: 0, y: 10, z: 20 }, // Moved much closer to the camera's initial position
-	size: 2,
-	hitboxSize: 2, // Reduced to match the portal's visual size
+	position: { x: 0, y: 10, z: 30 }, // Moved much closer to the camera's initial position
+	size: 1,
+	hitboxSize: 0, // Reduced to match the portal's visual size
 	color: 0x00ffff
 };
 
