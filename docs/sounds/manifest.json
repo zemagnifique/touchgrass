@@ -1,6 +1,166 @@
 {
-    "files": [
-        "speech.mp3",
+    "default": [
+        "chunk_001.mp3",
+        "chunk_002.mp3",
+        "chunk_003.mp3",
+        "chunk_004.mp3",
+        "chunk_005.mp3",
+        "chunk_006.mp3",
+        "chunk_007.mp3",
+        "chunk_009.mp3",
+        "chunk_010.mp3",
+        "chunk_012.mp3",
+        "chunk_013.mp3",
+        "chunk_014.mp3",
+        "chunk_015.mp3",
+        "chunk_016.mp3",
+        "chunk_018.mp3",
+        "chunk_019.mp3",
+        "chunk_020.mp3",
+        "chunk_021.mp3",
+        "chunk_022.mp3",
+        "chunk_023.mp3",
+        "chunk_025.mp3",
+        "chunk_026.mp3",
+        "chunk_027.mp3",
+        "chunk_028.mp3",
+        "chunk_030.mp3",
+        "chunk_031.mp3",
+        "chunk_034.mp3"
+    ],
+    "end": [
+        "end.mp3"
+    ],
+    "touch": [
+        "chunk_000.mp3",
+        "chunk_001.mp3",
+        "chunk_002.mp3",
+        "chunk_003.mp3",
+        "chunk_004.mp3",
+        "chunk_005.mp3",
+        "chunk_006.mp3",
+        "chunk_007.mp3",
+        "chunk_008.mp3",
+        "chunk_009.mp3",
+        "chunk_010.mp3",
+        "chunk_011.mp3",
+        "chunk_012.mp3",
+        "chunk_013.mp3",
+        "chunk_014.mp3",
+        "chunk_015.mp3",
+        "chunk_016.mp3",
+        "chunk_017.mp3",
+        "chunk_018.mp3",
+        "chunk_019.mp3",
+        "chunk_020.mp3",
+        "chunk_021.mp3",
+        "chunk_022.mp3",
+        "chunk_023.mp3",
+        "chunk_024.mp3",
+        "chunk_025.mp3",
+        "chunk_026.mp3",
+        "chunk_027.mp3",
+        "chunk_028.mp3"
+    ],
+    "success": [
         "success.mp3"
-    ]
+    ],
+    "mute": [
+        "mute.mp3"
+    ],
+    "reload": [
+        "chunk_000.mp3",
+        "chunk_001.mp3",
+        "chunk_002.mp3",
+        "chunk_003.mp3"   
+    ],
+    "inactive": [
+        "inactive.mp3"
+    ],
+    "grass": [
+        "grass.mp3"
+    ],
+    "sky_look": [
+        "sky.mp3"
+    ],
+    "sky_position": [
+        "sky_look_away.mp3"
+    ],
+    "sky_touch": [
+        "chunk_000.mp3",
+        "chunk_001.mp3",
+        "chunk_002.mp3",
+        "chunk_003.mp3",
+        "chunk_004.mp3",
+        "chunk_005.mp3",
+        "chunk_006.mp3",
+        "chunk_007.mp3"  
+    ],
+    "whisper": [
+        "whisper.mp3"
+    ],
+    "wind": [
+        "wind.mp3"
+    ],
+    "portal": [
+        "portal.mp3"
+    ],
+    "intro": [
+        "chunk_000.mp3",
+        "chunk_001.mp3",
+        "chunk_002.mp3",
+        "chunk_003.mp3",
+        "chunk_004.mp3"
+    ],
+    "tab": [
+        "tab.mp3"
+    ],
+    "leave": [
+        "goodbye.mp3"
+    ],
+    "startexperiencealt": [
+        "startexperiencealt.mp3"
+    ],
+    "paywall": {
+        "2": {
+            "initial": "initial.mp3",
+            "hover1": "hover1.mp3",
+            "hover2": "hover2.mp3",
+            "hover3": "hover3.mp3",
+            "grassClick": "grassclick.mp3",
+            "payClick": "payclick.mp3",
+            "paySuccess": "paysuccess.mp3",
+            "payCancel": "paycancel.mp3"
+        },
+        "5": {
+            "initial": "initial.mp3",
+            "hover1": "hover1.mp3",
+            "hover2": "hover2.mp3",
+            "hover3": "hover3.mp3",
+            "grassClick": "grassclick.mp3",
+            "payClick": "payclick.mp3",
+            "paySuccess": "paysuccess.mp3",
+            "payCancel": "paycancel.mp3"
+        },
+        "10": {
+            "initial": "initial.mp3",
+            "hover1": "hover1.mp3",
+            "hover2": "hover2.mp3",
+            "hover3": "hover3.mp3",
+            "grassClick": "grassclick.mp3",
+            "payClick": "payclick.mp3",
+            "paySuccess": "paysuccess.mp3",
+            "payCancel": "paycancel.mp3"
+        },
+        "1000": {
+            "initial": "initial.mp3",
+            "hover1": "hover1.mp3",
+            "hover2": "hover2.mp3",
+            "hover3": "hover3.mp3",
+            "grassClick": "grassclick.mp3",
+            "payClick": "payclick.mp3",
+            "paySuccess": "paysuccess.mp3",
+            "payCancel": "paycancel.mp3"
+        }
+    }
 } 
