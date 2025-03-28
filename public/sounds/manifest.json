@@ -94,5 +94,47 @@
     ],
     "startexperiencealt": [
         "startexperiencealt.mp3"
-    ]
+    ],
+    "paywall": {
+        "2": {
+            "initial": "initial.mp3",
+            "hover1": "hover1.mp3",
+            "hover2": "hover2.mp3",
+            "hover3": "hover3.mp3",
+            "grassClick": "grassclick.mp3",
+            "payClick": "payclick.mp3",
+            "paySuccess": "paysuccess.mp3",
+            "payCancel": "paycancel.mp3"
+        },
+        "5": {
+            "initial": "initial.mp3",
+            "hover1": "hover1.mp3",
+            "hover2": "hover2.mp3",
+            "hover3": "hover3.mp3",
+            "grassClick": "grassclick.mp3",
+            "payClick": "payclick.mp3",
+            "paySuccess": "paysuccess.mp3",
+            "payCancel": "paycancel.mp3"
+        },
+        "10": {
+            "initial": "initial.mp3",
+            "hover1": "hover1.mp3",
+            "hover2": "hover2.mp3",
+            "hover3": "hover3.mp3",
+            "grassClick": "grassclick.mp3",
+            "payClick": "payclick.mp3",
+            "paySuccess": "paysuccess.mp3",
+            "payCancel": "paycancel.mp3"
+        },
+        "1000": {
+            "initial": "initial.mp3",
+            "hover1": "hover1.mp3",
+            "hover2": "hover2.mp3",
+            "hover3": "hover3.mp3",
+            "grassClick": "grassclick.mp3",
+            "payClick": "payclick.mp3",
+            "paySuccess": "paysuccess.mp3",
+            "payCancel": "paycancel.mp3"
+        }
+    }
 } 

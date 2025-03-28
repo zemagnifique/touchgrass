@@ -61,6 +61,7 @@ let leaveAudios = []; // New collection for leave audio
 let portalAudios = []; // New collection for portal audio
 let muteAudio = null;
 let successAudio = null;
+let paywallAudios = {}; // Collection for paywall audio messages
 
 // State tracking
 let touchCount = 0;
@@ -1283,6 +1284,42 @@ async function loadSounds() {
             console.log(`Loaded ${startExperienceAudios.filter(a => a !== null).length}/${startExperienceAudios.length} start experience alt audio files`);
         }
         
+        // Load paywall audio files if available
+        if (manifest.paywall) {
+            paywallAudios = {};
+            const amounts = ['2', '5', '10', '1000'];
+            const messageTypes = ['initial', 'hover1', 'hover2', 'hover3', 'grassClick', 'payClick', 'paySuccess', 'payCancel'];
+            
+            for (const amount of amounts) {
+                if (manifest.paywall[amount]) {
+                    paywallAudios[amount] = {};
+                    for (const type of messageTypes) {
+                        if (manifest.paywall[amount][type]) {
+                            try {
+                                const audio = new Audio();
+                                audio.src = new URL(`sounds/paywall/${amount}/${manifest.paywall[amount][type]}`, window.location.origin + baseUrl).href;
+                                
+                                const loadPromise = new Promise((resolve, reject) => {
+                                    audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                                    audio.addEventListener('error', (e) => reject(new Error(`Failed to load paywall audio ${amount}/${type}`)), { once: true });
+                                    setTimeout(() => reject(new Error(`Timeout loading paywall audio ${amount}/${type}`)), 10000);
+                                });
+                                
+                                audio.load();
+                                await loadPromise;
+                                paywallAudios[amount][type] = audio;
+                                console.log(`Loaded paywall audio ${amount}/${type}`);
+                            } catch (error) {
+                                console.error(`Failed to load paywall audio ${amount}/${type}:`, error);
+                                paywallAudios[amount][type] = null;
+                            }
+                        }
+                    }
+                }
+            }
+            console.log('Loaded paywall audio files');
+        }
+        
         soundsLoaded = introAudios.length > 0 || defaultAudios.length > 0 || touchAudios.length > 0 || 
                       skyTouchAudios.length > 0 || tabAudios.length > 0 || leaveAudios.length > 0 || 
                       portalAudios.length > 0;
@@ -1508,6 +1545,7 @@ function resetAllState() {
     portalAudios = [];
     muteAudio = null;
     successAudio = null;
+    paywallAudios = {}; // Reset paywall audio state
 
     // Reset state tracking
     touchCount = 0;
@@ -1849,7 +1887,7 @@ function createPaywallUI(threshold) {
 
             // Add click handlers
             const handleGrassClick = () => {
-                speakTTS(threshold.messages.grassClick);
+                playPaywallAudio(threshold.amount.toString(), 'grassClick');
                 removePaywallUI();
             };
 
@@ -1894,7 +1932,7 @@ function createPaywallUI(threshold) {
 
             // Add click handler
             grassPatch.addEventListener('click', () => {
-                speakTTS(threshold.messages.grassClick);
+                playPaywallAudio(threshold.amount.toString(), 'grassClick');
                 removePaywallUI();
             });
 
@@ -1956,12 +1994,12 @@ function createPaywallUI(threshold) {
             paywallButton.style.transform = 'none';
             
             // Play hover message
-            speakTTS(threshold.messages[`hover${paywallHoverCount + 1}`]);
+            playPaywallAudio(threshold.amount.toString(), `hover${paywallHoverCount + 1}`);
             
             paywallHoverCount++;
         } else {
             // On third hover, button stays put
-            speakTTS(threshold.messages.hover3);
+            playPaywallAudio(threshold.amount.toString(), 'hover3');
         }
     });
     
@@ -1982,7 +2020,7 @@ function createPaywallUI(threshold) {
     paywallHoverCount = 0;
     
     // Play initial message
-    speakTTS(threshold.messages.initial);
+    playPaywallAudio(threshold.amount.toString(), 'initial');
 }
 
 // Function to remove paywall UI
@@ -2015,25 +2053,74 @@ function removePaywallUI() {
 
 // Function to handle payment
 async function handlePayment(threshold) {
-    speakTTS(threshold.messages.payClick);
+    playPaywallAudio(threshold.amount.toString(), 'payClick');
     
     if (threshold.amount === 1000) {
         // Special handling for $1000 paywall
         const name = prompt("Enter your name for the sky:");
         if (!name) {
-            speakTTS("No name? Then no sky for you. Pay anyway? Too late, dimwit.");
+            playPaywallAudio(threshold.amount.toString(), 'payCancel');
             return;
         }
         // Here you would integrate with Stripe or other payment processor
         // For now, we'll just simulate success
-        speakTTS(threshold.messages.paySuccess.replace('[NAME]', name));
+        playPaywallAudio(threshold.amount.toString(), 'paySuccess');
     } else {
         // Here you would integrate with Stripe or other payment processor
         // For now, we'll just simulate success
-        speakTTS(threshold.messages.paySuccess);
+        playPaywallAudio(threshold.amount.toString(), 'paySuccess');
     }
     
     removePaywallUI();
+}
+
+// Function to play paywall audio
+async function playPaywallAudio(amount, type, name = '') {
+    if (!paywallAudios[amount] || !paywallAudios[amount][type]) {
+        console.log(`No paywall audio found for ${amount}/${type}`);
+        return;
+    }
+
+    try {
+        // Stop any currently playing audio
+        if (currentAudio && !currentAudio.paused) {
+            currentAudio.pause();
+        }
+
+        // Clear any scheduled next audio
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+
+        audioPlaying = true;
+
+        // Get the paywall audio
+        currentAudio = paywallAudios[amount][type];
+        currentAudio.currentTime = 0;
+
+        const playPromise = new Promise(resolve => {
+            const onEnded = () => {
+                currentAudio.removeEventListener('ended', onEnded);
+                resolve();
+            };
+            currentAudio.addEventListener('ended', onEnded);
+        });
+
+        console.log(`Playing paywall audio ${amount}/${type}`);
+        await currentAudio.play();
+
+        // Wait for the audio to finish
+        await playPromise;
+
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+
+    } catch (error) {
+        console.error(`Failed to play paywall audio ${amount}/${type}:`, error);
+        audioPlaying = false;
+        lastAudioEndTime = Date.now();
+    }
 }
 
 // Function to speak text using Web Speech API
