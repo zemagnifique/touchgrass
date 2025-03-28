@@ -1842,11 +1842,9 @@ function createPaywallUI(threshold) {
                 cursor: pointer;
                 z-index: 1999;
                 transition: all 0.3s ease;
-                background-image: 
-                    radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
-                    radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
-                    radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px);
-                background-size: 10px 10px;
+                background-image: url('${window.location.origin + baseUrl}textures/grass.png');
+                background-size: cover;
+                background-position: center;
             `;
 
             // Create right gap grass patch
@@ -1862,31 +1860,21 @@ function createPaywallUI(threshold) {
                 cursor: pointer;
                 z-index: 1999;
                 transition: all 0.3s ease;
-                background-image: 
-                    radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
-                    radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
-                    radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px);
-                background-size: 10px 10px;
+                background-image: url('${window.location.origin + baseUrl}textures/grass.png');
+                background-size: cover;
+                background-position: center;
             `;
 
             // Add hover effects
             const addHoverEffects = (patch) => {
                 patch.addEventListener('mouseenter', () => {
                     patch.style.filter = 'brightness(1.2)';
-                    patch.style.backgroundImage = `
-                        radial-gradient(circle at 30% 50%, #3d8b41 1px, transparent 1px),
-                        radial-gradient(circle at 70% 50%, #3d8b41 1px, transparent 1px),
-                        radial-gradient(circle at 50% 50%, #45a049 1px, transparent 1px)
-                    `;
+                    patch.style.backgroundImage = `url('${window.location.origin + baseUrl}textures/grass.png')`;
                 });
 
                 patch.addEventListener('mouseleave', () => {
                     patch.style.filter = 'brightness(1)';
-                    patch.style.backgroundImage = `
-                        radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
-                        radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
-                        radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px)
-                    `;
+                    patch.style.backgroundImage = `url('${window.location.origin + baseUrl}textures/grass.png')`;
                 });
             };
 
@@ -1925,6 +1913,9 @@ function createPaywallUI(threshold) {
                 top: 60%; 
                 left: 50%;
                 transform: translate(-50%, -50%);
+                background-image: url('${window.location.origin + baseUrl}textures/grass.png');
+                background-size: cover;
+                background-position: center;
             `;
 
             // Add hover effect
@@ -1975,18 +1966,13 @@ function createPaywallUI(threshold) {
         const grassLink = document.createElement('span');
         grassLink.textContent = "grass";
         grassLink.style.cssText = `
-            // color: #4CAF50;
             cursor: pointer;
-            // text-decoration: underline;
-            // transition: all 0.3s ease;
-            // background: linear-gradient(45deg, #4CAF50, #45a049);
-            // -webkit-background-clip: text;
-            // -webkit-text-fill-color: transparent;
-            // background-image: 
-                // radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
-                // radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
-                // radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px);
-            // background-size: 10px 10px;
+            background-image: url('${window.location.origin + baseUrl}textures/grass.png');
+            background-size: cover;
+            background-position: center;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            transition: all 0.3s ease;
         `;
         
         const afterGrass = document.createElement('span');
@@ -1994,15 +1980,15 @@ function createPaywallUI(threshold) {
         
         // Add hover effect
         grassLink.addEventListener('mouseenter', () => {
-            grassLink.style.color = '#4CAF50';
             grassLink.style.filter = 'brightness(1.2)';
             grassLink.style.transform = 'scale(1.1)';
+            grassLink.style.backgroundImage = `url('${window.location.origin + baseUrl}textures/grass.png')`;
         });
         
         grassLink.addEventListener('mouseleave', () => {
-            grassLink.style.color = '#ffffff';
             grassLink.style.filter = 'brightness(1)';
             grassLink.style.transform = 'scale(1)';
+            grassLink.style.backgroundImage = `url('${window.location.origin + baseUrl}textures/grass.png')`;
         });
         
         // Add click handler
