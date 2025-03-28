@@ -28,6 +28,11 @@ export class FluffyGrass {
 	private loadingManager: THREE.LoadingManager;
 	private textureLoader: THREE.TextureLoader;
 	private gltfLoader: GLTFLoader;
+	private loadingScreen: HTMLDivElement; // Add loading screen element
+	private loadingProgressBar: HTMLDivElement; // Add progress bar element
+	private assetsLoaded: boolean = false; // Flag to track 3D assets loading
+	private audioLoaded: boolean = false; // Flag to track audio loading
+	private loadingTimeout: number | null = null; // Timeout for fallback loading completion
 
 	private camera: THREE.PerspectiveCamera;
 	private renderer: THREE.WebGLRenderer;
@@ -64,7 +69,39 @@ export class FluffyGrass {
 	private portalAudioFinished = false; // New flag to track audio completion
 
 	constructor(_canvas: HTMLCanvasElement) {
-		this.loadingManager = new THREE.LoadingManager();
+		// Create loading screen first, before any asset loading begins
+		this.createLoadingScreen();
+
+		// Add fallback timeout in case loading gets stuck
+		this.loadingTimeout = window.setTimeout(() => {
+			console.warn('Loading timeout reached, forcing completion');
+			this.assetsLoaded = true;
+			this.audioLoaded = true;
+			this.hideLoadingScreen();
+		}, 30000); // 30 seconds timeout
+
+		// Set up loading manager with loading events
+		this.loadingManager = new THREE.LoadingManager(
+			// onLoad callback
+			() => {
+				console.log('3D assets loaded!');
+				this.assetsLoaded = true;
+				this.checkAllResourcesLoaded();
+			},
+			// onProgress callback
+			(url, itemsLoaded, itemsTotal) => {
+				const progress = (itemsLoaded / itemsTotal) * 100;
+				console.log(`Loading: ${progress.toFixed(0)}% (${url})`);
+				if (this.loadingProgressBar) {
+					this.loadingProgressBar.style.width = `${progress}%`;
+				}
+			},
+			// onError callback
+			(url) => {
+				console.error(`Error loading: ${url}`);
+			}
+		);
+
 		this.textureLoader = new THREE.TextureLoader(this.loadingManager);
 
 		// this.gui = new dat.GUI();
@@ -119,6 +156,135 @@ export class FluffyGrass {
 		});
 
 		this.init();
+	}
+
+	// Create loading screen overlay
+	private createLoadingScreen() {
+		// Create loading screen container
+		this.loadingScreen = document.createElement('div');
+		this.loadingScreen.className = 'loading-screen';
+		this.loadingScreen.style.cssText = `
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background-color: #000000;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			z-index: 9999;
+		`;
+
+		// Create loading gif container
+		const loadingGifContainer = document.createElement('div');
+		// loadingGifContainer.style.cssText = `
+			// margin-bottom: 20px;
+			// overflow: hidden;
+			// border-radius: 50%;
+			// width: 200px;
+			// height: 200px;
+			// background-color: #333;
+			// display: flex;
+			// align-items: center;
+			// justify-content: center;
+		// `;
+
+		// Create loading gif image
+		const loadingGif = document.createElement('img');
+		loadingGif.src = 'images/dancinggrass.gif'; // Path to your dancing grass gif
+		loadingGif.alt = 'Loading...';
+		loadingGif.style.cssText = `
+			width: 100%;
+			height: 100%;
+			object-fit: cover;
+		`;
+
+		// Create loading text
+		const loadingText = document.createElement('h2');
+		loadingText.textContent = 'Loading the grass...';
+		loadingText.style.cssText = `
+			color: #ffffff;
+			font-family: Arial, sans-serif;
+			margin-bottom: 20px;
+			text-align: center;
+		`;
+
+		// Create loading status container
+		const loadingStatus = document.createElement('div');
+		loadingStatus.style.cssText = `
+			color: #aaaaaa;
+			font-family: Arial, sans-serif;
+			font-size: 14px;
+			margin-bottom: 10px;
+			display: flex;
+			flex-direction: row;
+			justify-content: space-between;
+			width: 80%;
+			max-width: 400px;
+		`;
+
+		// Create status items for 3D assets and audio
+		const asset3DStatus = document.createElement('div');
+		asset3DStatus.innerHTML = '3D Assets: <span>⏳</span>';
+		asset3DStatus.id = 'status-3d';
+
+		const audioStatus = document.createElement('div');
+		audioStatus.innerHTML = 'Audio: <span>⏳</span>';
+		audioStatus.id = 'status-audio';
+
+		loadingStatus.appendChild(asset3DStatus);
+		loadingStatus.appendChild(audioStatus);
+
+		// Create progress bar container
+		const progressContainer = document.createElement('div');
+		progressContainer.style.cssText = `
+			width: 80%;
+			max-width: 400px;
+			height: 10px;
+			background-color: #333333;
+			border-radius: 5px;
+			overflow: hidden;
+		`;
+
+		// Create progress bar
+		this.loadingProgressBar = document.createElement('div');
+		this.loadingProgressBar.style.cssText = `
+			width: 0%;
+			height: 100%;
+			background-color: #4CAF50;
+			transition: width 0.3s ease;
+		`;
+
+		// Assemble the loading screen
+		progressContainer.appendChild(this.loadingProgressBar);
+		loadingGifContainer.appendChild(loadingGif);
+		this.loadingScreen.appendChild(loadingGifContainer);
+		this.loadingScreen.appendChild(loadingText);
+		this.loadingScreen.appendChild(loadingStatus);
+		this.loadingScreen.appendChild(progressContainer);
+		document.body.appendChild(this.loadingScreen);
+	}
+
+	// Hide loading screen with a fadeout animation
+	private hideLoadingScreen() {
+		// Clear the timeout if it exists
+		if (this.loadingTimeout !== null) {
+			clearTimeout(this.loadingTimeout);
+			this.loadingTimeout = null;
+		}
+
+		// First fade out
+		this.loadingScreen.style.transition = 'opacity 1s ease';
+		this.loadingScreen.style.opacity = '0';
+
+		// Then remove from DOM
+		setTimeout(() => {
+			if (this.loadingScreen.parentNode) {
+				this.loadingScreen.parentNode.removeChild(this.loadingScreen);
+			}
+		}, 1000);
 	}
 
 	private init() {
@@ -630,6 +796,52 @@ export class FluffyGrass {
 				}, 150);
 			}, 150);
 		}
+	}
+
+	// Method to check if all resources are loaded
+	private checkAllResourcesLoaded() {
+		console.log(`Resources loaded - 3D assets: ${this.assetsLoaded}, Audio: ${this.audioLoaded}`);
+		
+		// Update the status indicators
+		const asset3DStatus = document.getElementById('status-3d');
+		const audioStatus = document.getElementById('status-audio');
+		
+		if (asset3DStatus) {
+			asset3DStatus.innerHTML = `3D Assets: <span style="color: ${this.assetsLoaded ? '#4CAF50' : '#FFA500'}">
+				${this.assetsLoaded ? '✓' : '⏳'}</span>`;
+		}
+		
+		if (audioStatus) {
+			audioStatus.innerHTML = `Audio: <span style="color: ${this.audioLoaded ? '#4CAF50' : '#FFA500'}">
+				${this.audioLoaded ? '✓' : '⏳'}</span>`;
+		}
+		
+		// Update the loading text
+		const loadingText = this.loadingScreen.querySelector('h2');
+		if (loadingText) {
+			if (this.assetsLoaded && !this.audioLoaded) {
+				loadingText.textContent = 'Loading sounds...';
+			} else if (!this.assetsLoaded && this.audioLoaded) {
+				loadingText.textContent = 'Loading 3D assets...';
+			} else if (this.assetsLoaded && this.audioLoaded) {
+				loadingText.textContent = 'Starting the experience...';
+			}
+		}
+		
+		// Hide loading screen if everything is loaded
+		if (this.assetsLoaded && this.audioLoaded) {
+			// Add a small delay to show the "Starting the experience..." message
+			setTimeout(() => {
+				this.hideLoadingScreen();
+			}, 800);
+		}
+	}
+
+	// Public method for speechAnnouncer.js to call when audio is loaded
+	public onAudioLoaded() {
+		console.log('Audio loading complete!');
+		this.audioLoaded = true;
+		this.checkAllResourcesLoaded();
 	}
 }
 

@@ -1052,6 +1052,7 @@ async function loadSounds() {
         const response = await fetch(manifestUrl);
         if (!response.ok) {
             console.error(`Failed to load manifest: ${response.status}`);
+            notifyLoadingComplete(false);
             return false;
         }
         
@@ -1380,11 +1381,33 @@ async function loadSounds() {
         soundsLoaded = introAudios.length > 0 || defaultAudios.length > 0 || touchAudios.length > 0 || 
                       skyTouchAudios.length > 0 || tabAudios.length > 0 || leaveAudios.length > 0 || 
                       portalAudios.length > 0;
+                      
+        // Notify FluffyGrass that audio loading is complete
+        notifyLoadingComplete(soundsLoaded);
         return soundsLoaded;
     } catch (error) {
         console.error('Error loading sounds:', error);
         soundsLoaded = false;
+        notifyLoadingComplete(false);
         return false;
+    }
+}
+
+// Function to notify FluffyGrass that audio loading is complete
+function notifyLoadingComplete(success) {
+    console.log(`Audio loading ${success ? 'succeeded' : 'failed'}, notifying FluffyGrass`);
+    if (window.fluffyGrass && typeof window.fluffyGrass.onAudioLoaded === 'function') {
+        window.fluffyGrass.onAudioLoaded();
+    } else {
+        console.warn('Could not notify FluffyGrass of audio loading completion - object not available');
+        // If FluffyGrass isn't available yet, retry after a short delay
+        setTimeout(() => {
+            if (window.fluffyGrass && typeof window.fluffyGrass.onAudioLoaded === 'function') {
+                window.fluffyGrass.onAudioLoaded();
+            } else {
+                console.error('FluffyGrass still not available after delay, loading screen may be stuck');
+            }
+        }, 2000);
     }
 }
 
