@@ -18,8 +18,8 @@ interface StatsWithDOM {
 const PORTAL_CONFIG = {
 	enabled: true, // Set to false to completely disable the portal
 	position: { x: 0, y: 10, z: 30 }, // Moved much closer to the camera's initial position
-	size: 1,
-	hitboxSize: 0, // Reduced to match the portal's visual size
+	size: 2,
+	hitboxSize: 2, // Reduced to match the portal's visual size
 	color: 0x00ffff
 };
 
@@ -76,6 +76,7 @@ export class FluffyGrass {
 	private portalPulseScale = 0.1;
 	private portalClickCount = 0;
 	private portalAudioFinished = false; // New flag to track audio completion
+	private lastClickTime = 0; // Track time of last click for double click detection
 
 	constructor(_canvas: HTMLCanvasElement) {
 		// Create loading screen first, before any asset loading begins
@@ -609,58 +610,13 @@ export class FluffyGrass {
 		this.portal.rotation.z = Math.PI / 2; // Make it vertical
 		this.portal.name = "portalMain"; // Name for easier debugging
 		
-		// Create a larger hitbox for easier clicking - use a box hitbox for better detection
-		const hitboxGeometry = new THREE.BoxGeometry(
-			PORTAL_CONFIG.size * 2, // Width - using size instead of hitboxSize
-			PORTAL_CONFIG.size * 2, // Height - using size instead of hitboxSize
-			PORTAL_CONFIG.size / 2 // Depth - thinner to match the portal
-		);
-		
-		const hitboxMaterial = new THREE.MeshBasicMaterial({
-			transparent: true, 
-			opacity: 0.0, // Make it invisible
-			side: THREE.DoubleSide
-		});
-		
-		const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
-		hitbox.name = "portalHitbox"; // Name for easier debugging
-		
-		// Add the hitbox to the portal
-		this.portal.add(hitbox);
-		
 		// Add to scene
 		this.scene.add(this.portal);
 		
-		// Add click handler
-		this.portal.userData.clickable = true;
-		hitbox.userData.clickable = true; // Mark the hitbox as clickable too
-		
 		console.log(`Portal created at position (${PORTAL_CONFIG.position.x}, ${PORTAL_CONFIG.position.y}, ${PORTAL_CONFIG.position.z})`);
-		console.log(`Portal hitbox size: ${PORTAL_CONFIG.size}`);
 	}
 
-	// Update animate method to include portal animation
-	public animate() {
-		// ... existing animation code ...
-		
-		// Animate portal if it exists and is enabled
-		if (this.portal && PORTAL_CONFIG.enabled) {
-			// Rotate portal
-			this.portal.rotation.z += this.portalRotationSpeed;
-			
-			// Update portal shader time uniform
-			const portalMaterial = this.portal.material as THREE.ShaderMaterial;
-			portalMaterial.uniforms.time.value += this.portalPulseSpeed;
-			
-			// Pulse portal size
-			const scale = 1 + Math.sin(Date.now() * this.portalPulseSpeed) * this.portalPulseScale;
-			this.portal.scale.set(scale, scale, scale);
-		}
-		
-		// ... rest of animation code ...
-	}
-
-	// Update handleClick to handle portal clicks (including the hitbox)
+	// Update handleClick to detect double clicks in the sky instead of portal clicks
 	private handleClick(event: MouseEvent) {
 		const canvas = this.canvas;
 		const rect = canvas.getBoundingClientRect();
@@ -670,90 +626,42 @@ export class FluffyGrass {
 		// Debug click coordinates
 		console.log(`Click detected at normalized coords: (${x.toFixed(2)}, ${y.toFixed(2)})`);
 		console.log(`Camera position: (${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)}, ${this.camera.position.z.toFixed(2)})`);
-		console.log(`Portal click count: ${this.portalClickCount}, Audio finished: ${this.portalAudioFinished}`);
 		
-		// Make sure the portal exists
-		if (!this.portal) {
-			console.log("Portal doesn't exist yet, can't detect clicks");
-			return;
-		}
-		
-		// Log portal position to help debug
-		console.log(`Portal position: (${this.portal.position.x.toFixed(2)}, ${this.portal.position.y.toFixed(2)}, ${this.portal.position.z.toFixed(2)})`);
-		
-		// Create raycaster with increased far setting
+		// Create raycaster
 		const raycaster = new THREE.Raycaster();
 		raycaster.far = 1000; // Increase the far clipping distance
 		raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
 		
-		// Force test against the portal and its children specifically
-		const portalIntersects = raycaster.intersectObject(this.portal, true);
+		// First, check if this is a click in the sky (high Y value or no intersections)
+		const intersects = raycaster.intersectObjects(this.scene.children, true);
+		const isClickInSky = intersects.length === 0 || 
+							(intersects.length > 0 && intersects[0].point.y > 15);
 		
-		// Also do the regular scene test
-		const sceneIntersects = raycaster.intersectObjects(this.scene.children, true);
+		// Check for double click in the sky
+		const now = Date.now();
+		const isDoubleClick = (now - this.lastClickTime) < 500; // 500ms threshold for double click
+		this.lastClickTime = now;
 		
-		// Log all intersected objects for debugging
-		console.log(`Portal intersects: ${portalIntersects.length}`);
-		console.log(`Scene intersects: ${sceneIntersects.length}`);
-		
-		// Combine the results
-		const allIntersects = [...portalIntersects, ...sceneIntersects];
-		
-		// Check if any intersected object is our portal or its hitbox
-		let portalIntersected = false;
-		for (const intersect of allIntersects) {
-			const obj = intersect.object;
-			
-			// Check if object is portal or its child
-			if (obj === this.portal || 
-				(obj.parent && obj.parent === this.portal) || 
-				(obj.name && obj.name === "portalHitbox")) {
-				portalIntersected = true;
-				console.log("✓ Portal or hitbox directly intersected!");
-				break;
-			}
-		}
-		
-		// Calculate distance for lenient hit detection
-		const portalScreenPosition = this.portal.position.clone().project(this.camera);
-		const distance = Math.sqrt(
-			Math.pow(portalScreenPosition.x - x, 2) + 
-			Math.pow(portalScreenPosition.y - y, 2)
-		);
-		
-		// Create a vector pointing from the camera to the portal
-		const cameraToPortal = this.portal.position.clone().sub(this.camera.position);
-		const cameraDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
-		
-		// Calculate the angle between camera direction and direction to portal
-		const angle = cameraDirection.angleTo(cameraToPortal.normalize());
-		
-		// If direct visual line to portal, try to be more lenient
-		let portalInFrontOfCamera = angle < Math.PI/2; // Portal is in front, not behind
-		const isCloseEnough = distance < 0.8; // Increased threshold for easier clicking
-		
-		// If we detected a hit with any method
-		if (portalIntersected || isCloseEnough || (portalInFrontOfCamera && distance < 1.0)) {
-			console.log('Portal interaction detected!');
+		if (isClickInSky && isDoubleClick) {
+			console.log('Double click in sky detected, triggering portal!');
 			
 			// Create a special event for the speech announcer to handle
 			const portalEvent = new MouseEvent(event.type, event);
 			Object.defineProperty(portalEvent, 'portalClick', {value: true});
 			
 			if (this.portalClickCount === 0) {
-				// First click - play portal audio
+				// First double click - play portal audio
 				this.portalClickCount++;
 				this.portalAudioFinished = false;
 				
 				// Dispatch portal click event to play audio
 				window.dispatchEvent(new CustomEvent('portalClick'));
 				
-				// Visual feedback for first click
+				// Visual feedback
 				this.pulsePortal();
 			} else {
-				// Second or later click - always attempt to redirect
-				// This overrides the audio finished check to prevent blocking
-				console.log('Second+ portal click detected, redirecting regardless of audio state');
+				// Second or later double click - attempt to redirect
+				console.log('Second portal activation detected, redirecting');
 				
 				// Force audio to be considered finished if it isn't already
 				if (!this.portalAudioFinished) {
@@ -977,6 +885,27 @@ export class FluffyGrass {
 			default:
 				console.log(`No special effect for $${amount} payment`);
 		}
+	}
+
+	// Update animate method to include portal animation
+	public animate() {
+		// ... existing animation code ...
+		
+		// Animate portal if it exists and is enabled
+		if (this.portal && PORTAL_CONFIG.enabled) {
+			// Rotate portal
+			this.portal.rotation.z += this.portalRotationSpeed;
+			
+			// Update portal shader time uniform
+			const portalMaterial = this.portal.material as THREE.ShaderMaterial;
+			portalMaterial.uniforms.time.value += this.portalPulseSpeed;
+			
+			// Pulse portal size
+			const scale = 1 + Math.sin(Date.now() * this.portalPulseSpeed) * this.portalPulseScale;
+			this.portal.scale.set(scale, scale, scale);
+		}
+		
+		// ... rest of animation code ...
 	}
 }
 

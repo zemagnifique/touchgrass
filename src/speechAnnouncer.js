@@ -1649,7 +1649,7 @@ async function createCongratulationOverlay() {
     `;
 
     const image = document.createElement('img');
-    image.src = `${window.location.origin + baseUrl}gw.png`;
+    image.src = `${window.location.origin + baseUrl}greengrass.png`;
     image.style.cssText = `
         max-width: 80%;
         max-height: 80%;
