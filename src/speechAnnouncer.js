@@ -1994,11 +1994,13 @@ function createPaywallUI(threshold) {
         
         // Add hover effect
         grassLink.addEventListener('mouseenter', () => {
+            grassLink.style.color = '#4CAF50';
             grassLink.style.filter = 'brightness(1.2)';
             grassLink.style.transform = 'scale(1.1)';
         });
         
         grassLink.addEventListener('mouseleave', () => {
+            grassLink.style.color = '#ffffff';
             grassLink.style.filter = 'brightness(1)';
             grassLink.style.transform = 'scale(1)';
         });
