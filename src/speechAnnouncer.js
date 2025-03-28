@@ -1778,7 +1778,7 @@ function createPaywallUI(threshold) {
         width: ${threshold.amount === 1000 ? '96%' : '100%'};
         height: 100%;
         background-color: #8B4513;
-        background-image: 
+        background-image: url('${window.location.origin + baseUrl}wall.png'), 
             /* Horizontal mortar lines */
             linear-gradient(0deg, rgba(0,0,0,0.2) 2px, transparent 2px),
             /* Vertical mortar lines for even rows */
@@ -1790,6 +1790,7 @@ function createPaywallUI(threshold) {
             /* Brick color variation for odd rows */
             linear-gradient(0deg, rgba(160,82,45,0.9) 30px, rgba(160,82,45,0.9) 58px);
         background-size: 
+            cover,
             /* Size for horizontal lines */
             100% 60px,
             /* Size for even row vertical lines */
@@ -1801,6 +1802,7 @@ function createPaywallUI(threshold) {
             /* Size for odd row color */
             100% 60px;
         background-position: 
+            center,
             /* Position for horizontal lines */
             0 0,
             /* Position for even row vertical lines */
@@ -1811,7 +1813,13 @@ function createPaywallUI(threshold) {
             0 0,
             /* Position for odd row color */
             0 0;
-        background-repeat: repeat;
+        background-repeat: 
+            no-repeat,
+            repeat,
+            repeat,
+            repeat,
+            repeat,
+            repeat;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -1958,14 +1966,62 @@ function createPaywallUI(threshold) {
         border-radius: 10px;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
     `;
-    messageText.textContent = "Pay up if you ever want to touch grass again";
+
+    if (threshold.amount === 10) {
+        // For $10 paywall, split the message and make "grass" clickable
+        const beforeGrass = document.createElement('span');
+        beforeGrass.textContent = "Pay up if you ever want to touch ";
+        
+        const grassLink = document.createElement('span');
+        grassLink.textContent = "grass";
+        grassLink.style.cssText = `
+            // color: #4CAF50;
+            cursor: pointer;
+            // text-decoration: underline;
+            // transition: all 0.3s ease;
+            // background: linear-gradient(45deg, #4CAF50, #45a049);
+            // -webkit-background-clip: text;
+            // -webkit-text-fill-color: transparent;
+            // background-image: 
+                // radial-gradient(circle at 30% 50%, #45a049 1px, transparent 1px),
+                // radial-gradient(circle at 70% 50%, #45a049 1px, transparent 1px),
+                // radial-gradient(circle at 50% 50%, #4CAF50 1px, transparent 1px);
+            // background-size: 10px 10px;
+        `;
+        
+        const afterGrass = document.createElement('span');
+        afterGrass.textContent = " again";
+        
+        // Add hover effect
+        grassLink.addEventListener('mouseenter', () => {
+            grassLink.style.filter = 'brightness(1.2)';
+            grassLink.style.transform = 'scale(1.1)';
+        });
+        
+        grassLink.addEventListener('mouseleave', () => {
+            grassLink.style.filter = 'brightness(1)';
+            grassLink.style.transform = 'scale(1)';
+        });
+        
+        // Add click handler
+        grassLink.addEventListener('click', () => {
+            playPaywallAudio(threshold.amount.toString(), 'grassClick');
+            removePaywallUI();
+        });
+        
+        messageText.appendChild(beforeGrass);
+        messageText.appendChild(grassLink);
+        messageText.appendChild(afterGrass);
+    } else {
+        messageText.textContent = "Pay up if you ever want to touch grass again";
+    }
     
     // Create pay button
     paywallButton = document.createElement('button');
     paywallButton.style.cssText = `
         padding: 15px 30px;
         font-size: 24px;
-        background: #4CAF50;
+        background: #000000;
         color: white;
         border: none;
         border-radius: 5px;
@@ -1976,6 +2032,7 @@ function createPaywallUI(threshold) {
         left: 50%;
         transform: translate(-50%, -50%);
         z-index: ${threshold.amount === 10 ? '2004' : '2002'};
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
     `;
     paywallButton.textContent = `Pay $${threshold.amount}`;
     
