@@ -200,6 +200,10 @@ let isDragging = false;
 let mouseDownPosition = { x: 0, y: 0 };
 let dragThreshold = 5; // pixels - movement greater than this is considered a drag
 
+// Add a state variable to track if we're handling a portal click
+let isHandlingPortalClick = false;
+let portalAudioTimeout = null; // Add timeout tracker for portal audio
+
 // Function to handle a touch event (now only called for non-drag clicks)
 async function handleTouch(event) {
     // If paywall is active, don't process touches
@@ -212,10 +216,24 @@ async function handleTouch(event) {
         return;
     }
 
-    // If audio is currently playing, don't process new touches
-    if (audioPlaying) {
+    // Special case for portal clicks - always process regardless of audio state
+    const isPortalClick = event.portalClick === true;
+
+    // If audio is currently playing and it's not a special portal click, don't process new touches
+    if (audioPlaying && !isPortalClick) {
         console.log('Audio is playing, ignoring touch');
         return;
+    }
+
+    // If it's a portal click, forcibly stop any current audio to ensure portal action proceeds
+    if (isPortalClick && currentAudio) {
+        console.log('Portal click detected - stopping current audio to ensure action proceeds');
+        currentAudio.pause();
+        if (nextAudioTimeoutId) {
+            clearTimeout(nextAudioTimeoutId);
+            nextAudioTimeoutId = null;
+        }
+        audioPlaying = false;
     }
 
     // Get the click position
@@ -826,7 +844,16 @@ async function playLeaveAudio() {
 async function playPortalAudio() {
     if (!soundsLoaded || portalAudios.length === 0 || isMuted) return;
     
+    // Clear any existing portal audio timeout
+    if (portalAudioTimeout) {
+        clearTimeout(portalAudioTimeout);
+        portalAudioTimeout = null;
+    }
+    
     try {
+        // Set flag to indicate we're handling a portal interaction
+        isHandlingPortalClick = true;
+        
         // Stop any currently playing audio
         if (currentAudio && !currentAudio.paused) {
             currentAudio.pause();
@@ -856,22 +883,47 @@ async function playPortalAudio() {
         console.log(`Playing portal audio ${portalIndex}`);
         await currentAudio.play();
         
+        // Set a failsafe timeout to ensure portal audio is considered complete after 5 seconds
+        // even if the audio playback fails or gets stuck
+        portalAudioTimeout = setTimeout(() => {
+            console.log('Portal audio failsafe timeout triggered');
+            completePortalAudio();
+        }, 5000);
+        
         // Wait for the audio to finish
         await playPromise;
         
-        audioPlaying = false;
-        lastAudioEndTime = Date.now();
-        
-        // Notify that portal audio is finished
-        if (window.fluffyGrass) {
-            window.fluffyGrass.onPortalAudioComplete();
-        }
-        
+        // Audio completed normally
+        completePortalAudio();
     } catch (error) {
         console.error('Failed to play portal audio:', error);
-        audioPlaying = false;
-        lastAudioEndTime = Date.now();
+        // Ensure we still complete the portal audio flow even if there's an error
+        completePortalAudio();
     }
+}
+
+// Helper function to complete portal audio and reset state
+function completePortalAudio() {
+    // Only complete once - prevent duplicate completions
+    if (!isHandlingPortalClick) return;
+    
+    // Clear the timeout if it exists
+    if (portalAudioTimeout) {
+        clearTimeout(portalAudioTimeout);
+        portalAudioTimeout = null;
+    }
+    
+    audioPlaying = false;
+    lastAudioEndTime = Date.now();
+    
+    // Notify that portal audio is finished
+    if (window.fluffyGrass) {
+        window.fluffyGrass.onPortalAudioComplete();
+        console.log('Portal audio complete, notified FluffyGrass');
+    }
+    
+    // Reset portal handling flag
+    isHandlingPortalClick = false;
 }
 
 function getBaseUrl() {

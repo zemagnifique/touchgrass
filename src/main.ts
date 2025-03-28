@@ -17,8 +17,9 @@ interface StatsWithDOM {
 // Portal configuration
 const PORTAL_CONFIG = {
 	enabled: true, // Set to false to completely disable the portal
-	position: { x: 10, y: 20, z: 50 },
+	position: { x: 0, y: 10, z: 20 }, // Moved much closer to the camera's initial position
 	size: 2,
+	hitboxSize: 2, // Reduced to match the portal's visual size
 	color: 0x00ffff
 };
 
@@ -431,12 +432,36 @@ export class FluffyGrass {
 		this.portal = new THREE.Mesh(portalGeometry, portalMaterial);
 		this.portal.position.set(PORTAL_CONFIG.position.x, PORTAL_CONFIG.position.y, PORTAL_CONFIG.position.z);
 		this.portal.rotation.z = Math.PI / 2; // Make it vertical
+		this.portal.name = "portalMain"; // Name for easier debugging
+		
+		// Create a larger hitbox for easier clicking - use a box hitbox for better detection
+		const hitboxGeometry = new THREE.BoxGeometry(
+			PORTAL_CONFIG.size * 2, // Width - using size instead of hitboxSize
+			PORTAL_CONFIG.size * 2, // Height - using size instead of hitboxSize
+			PORTAL_CONFIG.size / 2 // Depth - thinner to match the portal
+		);
+		
+		const hitboxMaterial = new THREE.MeshBasicMaterial({
+			transparent: true, 
+			opacity: 0.0, // Make it invisible
+			side: THREE.DoubleSide
+		});
+		
+		const hitbox = new THREE.Mesh(hitboxGeometry, hitboxMaterial);
+		hitbox.name = "portalHitbox"; // Name for easier debugging
+		
+		// Add the hitbox to the portal
+		this.portal.add(hitbox);
 		
 		// Add to scene
 		this.scene.add(this.portal);
 		
 		// Add click handler
 		this.portal.userData.clickable = true;
+		hitbox.userData.clickable = true; // Mark the hitbox as clickable too
+		
+		console.log(`Portal created at position (${PORTAL_CONFIG.position.x}, ${PORTAL_CONFIG.position.y}, ${PORTAL_CONFIG.position.z})`);
+		console.log(`Portal hitbox size: ${PORTAL_CONFIG.size}`);
 	}
 
 	// Update animate method to include portal animation
@@ -460,33 +485,125 @@ export class FluffyGrass {
 		// ... rest of animation code ...
 	}
 
-	// Update handleClick to handle portal clicks
+	// Update handleClick to handle portal clicks (including the hitbox)
 	private handleClick(event: MouseEvent) {
 		const canvas = this.canvas;
 		const rect = canvas.getBoundingClientRect();
 		const x = ((event.clientX - rect.left) / canvas.width) * 2 - 1;
 		const y = -((event.clientY - rect.top) / canvas.height) * 2 + 1;
 
-		const raycaster = new THREE.Raycaster();
-		raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
-		const intersects = raycaster.intersectObjects(this.scene.children, true);
+		// Debug click coordinates
+		console.log(`Click detected at normalized coords: (${x.toFixed(2)}, ${y.toFixed(2)})`);
+		console.log(`Camera position: (${this.camera.position.x.toFixed(2)}, ${this.camera.position.y.toFixed(2)}, ${this.camera.position.z.toFixed(2)})`);
+		console.log(`Portal click count: ${this.portalClickCount}, Audio finished: ${this.portalAudioFinished}`);
 		
-		if (intersects.length > 0) {
-			const object = intersects[0].object;
+		// Make sure the portal exists
+		if (!this.portal) {
+			console.log("Portal doesn't exist yet, can't detect clicks");
+			return;
+		}
+		
+		// Log portal position to help debug
+		console.log(`Portal position: (${this.portal.position.x.toFixed(2)}, ${this.portal.position.y.toFixed(2)}, ${this.portal.position.z.toFixed(2)})`);
+		
+		// Create raycaster with increased far setting
+		const raycaster = new THREE.Raycaster();
+		raycaster.far = 1000; // Increase the far clipping distance
+		raycaster.setFromCamera(new THREE.Vector2(x, y), this.camera);
+		
+		// Force test against the portal and its children specifically
+		const portalIntersects = raycaster.intersectObject(this.portal, true);
+		
+		// Also do the regular scene test
+		const sceneIntersects = raycaster.intersectObjects(this.scene.children, true);
+		
+		// Log all intersected objects for debugging
+		console.log(`Portal intersects: ${portalIntersects.length}`);
+		console.log(`Scene intersects: ${sceneIntersects.length}`);
+		
+		// Combine the results
+		const allIntersects = [...portalIntersects, ...sceneIntersects];
+		
+		// Check if any intersected object is our portal or its hitbox
+		let portalIntersected = false;
+		for (const intersect of allIntersects) {
+			const obj = intersect.object;
 			
-			// Check if clicked object is the portal and portal is enabled
-			if (object === this.portal && PORTAL_CONFIG.enabled) {
-				if (this.portalClickCount === 0) {
-					// First click - play portal audio
-					this.portalClickCount++;
-					this.portalAudioFinished = false;
-					window.dispatchEvent(new CustomEvent('portalClick'));
-				} else if (this.portalClickCount === 1 && this.portalAudioFinished) {
-					// Second click - only if audio has finished
-					this.portalClickCount++;
-					window.location.href = 'http://portal.pieter.com';
-				}
+			// Check if object is portal or its child
+			if (obj === this.portal || 
+				(obj.parent && obj.parent === this.portal) || 
+				(obj.name && obj.name === "portalHitbox")) {
+				portalIntersected = true;
+				console.log("✓ Portal or hitbox directly intersected!");
+				break;
 			}
+		}
+		
+		// Calculate distance for lenient hit detection
+		const portalScreenPosition = this.portal.position.clone().project(this.camera);
+		const distance = Math.sqrt(
+			Math.pow(portalScreenPosition.x - x, 2) + 
+			Math.pow(portalScreenPosition.y - y, 2)
+		);
+		
+		// Create a vector pointing from the camera to the portal
+		const cameraToPortal = this.portal.position.clone().sub(this.camera.position);
+		const cameraDirection = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
+		
+		// Calculate the angle between camera direction and direction to portal
+		const angle = cameraDirection.angleTo(cameraToPortal.normalize());
+		
+		// If direct visual line to portal, try to be more lenient
+		let portalInFrontOfCamera = angle < Math.PI/2; // Portal is in front, not behind
+		const isCloseEnough = distance < 0.8; // Increased threshold for easier clicking
+		
+		// If we detected a hit with any method
+		if (portalIntersected || isCloseEnough || (portalInFrontOfCamera && distance < 1.0)) {
+			console.log('Portal interaction detected!');
+			
+			// Create a special event for the speech announcer to handle
+			const portalEvent = new MouseEvent(event.type, event);
+			Object.defineProperty(portalEvent, 'portalClick', {value: true});
+			
+			if (this.portalClickCount === 0) {
+				// First click - play portal audio
+				this.portalClickCount++;
+				this.portalAudioFinished = false;
+				
+				// Dispatch portal click event to play audio
+				window.dispatchEvent(new CustomEvent('portalClick'));
+				
+				// Visual feedback for first click
+				this.pulsePortal();
+			} else {
+				// Second or later click - always attempt to redirect
+				// This overrides the audio finished check to prevent blocking
+				console.log('Second+ portal click detected, redirecting regardless of audio state');
+				
+				// Force audio to be considered finished if it isn't already
+				if (!this.portalAudioFinished) {
+					this.onPortalAudioComplete();
+				}
+				
+				// Create a delay before redirect to ensure UI updates
+				setTimeout(() => {
+					window.location.href = 'http://portal.pieter.com';
+				}, 100);
+			}
+		}
+	}
+
+	// Add a method to pulse the portal for visual feedback
+	private pulsePortal() {
+		if (this.portal) {
+			const originalScale = this.portal.scale.clone();
+			const pulseScale = originalScale.clone().multiplyScalar(1.5);
+			
+			// Pulse effect
+			this.portal.scale.copy(pulseScale);
+			setTimeout(() => {
+				this.portal.scale.copy(originalScale);
+			}, 300);
 		}
 	}
 
@@ -494,6 +611,25 @@ export class FluffyGrass {
 	public onPortalAudioComplete() {
 		this.portalAudioFinished = true;
 		console.log('Portal audio finished, ready for second click');
+		
+		// Visual indicator that portal is ready for second click
+		if (this.portal) {
+			// Make the portal flash to indicate it's ready for second click
+			const originalScale = this.portal.scale.clone();
+			const flashScale = originalScale.clone().multiplyScalar(1.5);
+			
+			// Flash sequence
+			this.portal.scale.copy(flashScale);
+			setTimeout(() => {
+				this.portal.scale.copy(originalScale);
+				setTimeout(() => {
+					this.portal.scale.copy(flashScale);
+					setTimeout(() => {
+						this.portal.scale.copy(originalScale);
+					}, 150);
+				}, 150);
+			}, 150);
+		}
 	}
 }
 
