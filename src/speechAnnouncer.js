@@ -195,7 +195,12 @@ function saveState() {
     }
 }
 
-// Function to handle a touch event
+// Add these variables for tracking mouse movement at the top with other state variables
+let isDragging = false;
+let mouseDownPosition = { x: 0, y: 0 };
+let dragThreshold = 5; // pixels - movement greater than this is considered a drag
+
+// Function to handle a touch event (now only called for non-drag clicks)
 async function handleTouch(event) {
     // If paywall is active, don't process touches
     if (currentPaywall) {
@@ -1359,15 +1364,20 @@ async function startAnnouncements() {
             createStartExperienceUI();
         }
         
-        // Set up touch event listener for grass interaction
+        // Set up mouse event listeners for tracking drags
         const canvas = document.getElementById('canvas');
         if (canvas) {
-            canvas.addEventListener('click', handleTouch);
-            console.log('Added touch handler to canvas');
+            // Replace click listener with mousedown/mouseup/mousemove listeners
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            console.log('Added mouse handlers to canvas');
         } else {
             // Fallback to document if canvas not found
-            document.addEventListener('click', handleTouch);
-            console.log('Canvas not found, added touch handler to document');
+            document.addEventListener('mousedown', handleMouseDown);
+            document.addEventListener('mouseup', handleMouseUp);
+            document.addEventListener('mousemove', handleMouseMove);
+            console.log('Canvas not found, added mouse handlers to document');
         }
         
         // Add visibility change handler for tab changes
@@ -1412,6 +1422,40 @@ async function startAnnouncements() {
     } else {
         console.error('Failed to load audio files');
     }
+}
+
+// New function to handle mouse down
+function handleMouseDown(event) {
+    // Store the initial position where the user pressed the mouse down
+    mouseDownPosition.x = event.clientX;
+    mouseDownPosition.y = event.clientY;
+    isDragging = false;
+}
+
+// New function to handle mouse movement
+function handleMouseMove(event) {
+    // If the mouse is moving a significant distance from where it was clicked, consider it a drag
+    if (!isDragging) {
+        const dx = event.clientX - mouseDownPosition.x;
+        const dy = event.clientY - mouseDownPosition.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance > dragThreshold) {
+            isDragging = true;
+            console.log('Drag detected, will not count as touch');
+        }
+    }
+}
+
+// New function to handle mouse up
+function handleMouseUp(event) {
+    if (!isDragging) {
+        // If not dragging, treat it as a touch
+        console.log('Click detected (not a drag), counting as touch');
+        handleTouch(event);
+    }
+    // Reset dragging state
+    isDragging = false;
 }
 
 function stopAnnouncements() {
