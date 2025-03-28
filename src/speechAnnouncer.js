@@ -1112,9 +1112,26 @@ async function loadSounds() {
         // Build a list of all files to load
         const priorityFiles = [];
         const nonPriorityFiles = [];
+
+        // For touch audios, find the highest index that's been played
+        // We'll only load files that are at a higher index (ones user hasn't heard yet)
+        // Plus a few before it for context
+        let highestPlayedTouchIndex = -1;
+        let highestPlayedSkyTouchIndex = -1;
+        
+        if (playedTouchAudios.size > 0) {
+            highestPlayedTouchIndex = Math.max(...Array.from(playedTouchAudios));
+            console.log(`Highest played touch audio index: ${highestPlayedTouchIndex}`);
+        }
+        
+        if (playedSkyTouchAudios.size > 0) {
+            highestPlayedSkyTouchIndex = Math.max(...Array.from(playedSkyTouchAudios));
+            console.log(`Highest played sky touch audio index: ${highestPlayedSkyTouchIndex}`);
+        }
         
         // PRIORITY 1: Essential intro and default audios (just the first few)
         if (manifest.intro && manifest.intro.length > 0) {
+            // Always load initial intro audios since they're essential
             const initialCount = Math.min(2, manifest.intro.length);
             for (let i = 0; i < initialCount; i++) {
                 priorityFiles.push({
@@ -1138,8 +1155,13 @@ async function loadSounds() {
         
         // PRIORITY 2: First few default audios
         if (manifest.default && manifest.default.length > 0) {
+            // Load just what we need based on the defaultAudioIndex
             const initialCount = Math.min(2, manifest.default.length);
-            for (let i = 0; i < initialCount; i++) {
+            
+            // Start loading from the current index, or from the beginning if index is 0
+            const startIndex = Math.max(0, defaultAudioIndex);
+            
+            for (let i = startIndex; i < startIndex + initialCount && i < manifest.default.length; i++) {
                 priorityFiles.push({
                     type: 'default',
                     index: i,
@@ -1148,8 +1170,8 @@ async function loadSounds() {
                 });
             }
             
-            // Queue the rest for background loading
-            for (let i = initialCount; i < manifest.default.length; i++) {
+            // Queue a few more for background loading
+            for (let i = startIndex + initialCount; i < startIndex + initialCount + 3 && i < manifest.default.length; i++) {
                 nonPriorityFiles.push({
                     type: 'default',
                     index: i,
@@ -1159,46 +1181,114 @@ async function loadSounds() {
             }
         }
         
-        // PRIORITY 3: First touch/sky touch audio
+        // PRIORITY 3: Touch audio prioritizing unplayed files
         if (manifest.touch && manifest.touch.length > 0) {
-            priorityFiles.push({
-                type: 'touch',
-                index: 0,
-                filePath: new URL(`sounds/touch/${manifest.touch[0]}`, window.location.origin + baseUrl).href,
-                targetArray: touchAudios
-            });
+            // If the user has already played some touch audios, start after the highest played index
+            // Also load a couple previous audio files for context
+            const contextBuffer = 2; // How many past files to load for context
+            const startIndex = Math.max(0, highestPlayedTouchIndex - contextBuffer + 1);
             
-            // Queue the rest for background loading
-            for (let i = 1; i < manifest.touch.length; i++) {
-                nonPriorityFiles.push({
-                    type: 'touch',
-                    index: i,
-                    filePath: new URL(`sounds/touch/${manifest.touch[i]}`, window.location.origin + baseUrl).href,
-                    targetArray: touchAudios
-                });
+            // Load the next few unplayed touch audios as priority
+            const priorityCount = 3;
+            for (let i = startIndex; i < manifest.touch.length && i < startIndex + priorityCount; i++) {
+                // Skip already played files except for context buffer
+                if (i > highestPlayedTouchIndex || i >= highestPlayedTouchIndex - contextBuffer) {
+                    priorityFiles.push({
+                        type: 'touch',
+                        index: i,
+                        filePath: new URL(`sounds/touch/${manifest.touch[i]}`, window.location.origin + baseUrl).href,
+                        targetArray: touchAudios
+                    });
+                    console.log(`Priority loading touch audio ${i}`);
+                }
+            }
+            
+            // Queue the remaining unplayed files for background loading
+            for (let i = startIndex + priorityCount; i < manifest.touch.length; i++) {
+                // Skip already played files
+                if (i > highestPlayedTouchIndex) {
+                    nonPriorityFiles.push({
+                        type: 'touch',
+                        index: i,
+                        filePath: new URL(`sounds/touch/${manifest.touch[i]}`, window.location.origin + baseUrl).href,
+                        targetArray: touchAudios
+                    });
+                    console.log(`Background loading touch audio ${i}`);
+                }
             }
         }
         
         if (manifest.sky_touch && manifest.sky_touch.length > 0) {
+            // Similar approach for sky touch audios
+            const contextBuffer = 2;
+            const startIndex = Math.max(0, highestPlayedSkyTouchIndex - contextBuffer + 1);
+            
+            // Load the next few unplayed sky touch audios as priority
+            const priorityCount = 2;
+            for (let i = startIndex; i < manifest.sky_touch.length && i < startIndex + priorityCount; i++) {
+                // Skip already played files except for context buffer
+                if (i > highestPlayedSkyTouchIndex || i >= highestPlayedSkyTouchIndex - contextBuffer) {
+                    priorityFiles.push({
+                        type: 'sky_touch',
+                        index: i,
+                        filePath: new URL(`sounds/sky_touch/${manifest.sky_touch[i]}`, window.location.origin + baseUrl).href,
+                        targetArray: skyTouchAudios
+                    });
+                    console.log(`Priority loading sky touch audio ${i}`);
+                }
+            }
+            
+            // Queue the remaining unplayed files for background loading
+            for (let i = startIndex + priorityCount; i < manifest.sky_touch.length; i++) {
+                // Skip already played files
+                if (i > highestPlayedSkyTouchIndex) {
+                    nonPriorityFiles.push({
+                        type: 'sky_touch',
+                        index: i,
+                        filePath: new URL(`sounds/sky_touch/${manifest.sky_touch[i]}`, window.location.origin + baseUrl).href,
+                        targetArray: skyTouchAudios
+                    });
+                    console.log(`Background loading sky touch audio ${i}`);
+                }
+            }
+        }
+        
+        // Continue with other audio types...
+        // But for most other audio types, just load them as before since they're less frequent
+
+        // For tab audio, only load if it hasn't been played yet
+        if (manifest.tab && manifest.tab.length > 0 && !hasPlayedTabAudio) {
             priorityFiles.push({
-                type: 'sky_touch',
+                type: 'tab',
                 index: 0,
-                filePath: new URL(`sounds/sky_touch/${manifest.sky_touch[0]}`, window.location.origin + baseUrl).href,
-                targetArray: skyTouchAudios
+                filePath: new URL(`sounds/tab/${manifest.tab[0]}`, window.location.origin + baseUrl).href,
+                targetArray: tabAudios
             });
             
             // Queue the rest for background loading
-            for (let i = 1; i < manifest.sky_touch.length; i++) {
+            for (let i = 1; i < manifest.tab.length; i++) {
                 nonPriorityFiles.push({
-                    type: 'sky_touch',
+                    type: 'tab',
                     index: i,
-                    filePath: new URL(`sounds/sky_touch/${manifest.sky_touch[i]}`, window.location.origin + baseUrl).href,
-                    targetArray: skyTouchAudios
+                    filePath: new URL(`sounds/tab/${manifest.tab[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: tabAudios
                 });
             }
         }
         
-        // PRIORITY 4: First portal audio (for initial portal click)
+        // Always load mute audio since it's essential
+        if (manifest.mute && manifest.mute.length > 0) {
+            priorityFiles.push({
+                type: 'mute',
+                index: 0,
+                filePath: new URL(`sounds/mute/${manifest.mute[0]}`, window.location.origin + baseUrl).href,
+                targetArray: [null] // Placeholder, we'll set this directly
+            });
+        }
+        
+        // Always load required audio types that are essential for functionality (portal, end, etc.)
+        
+        // Portal audio 
         if (manifest.portal && manifest.portal.length > 0) {
             priorityFiles.push({
                 type: 'portal',
@@ -1218,33 +1308,14 @@ async function loadSounds() {
             }
         }
         
-        // PRIORITY 5: Mute and tab audio
-        if (manifest.mute && manifest.mute.length > 0) {
+        // End audio (add if it exists in the manifest)
+        if (manifest.end && manifest.end.length > 0) {
             priorityFiles.push({
-                type: 'mute',
+                type: 'end',
                 index: 0,
-                filePath: new URL(`sounds/mute/${manifest.mute[0]}`, window.location.origin + baseUrl).href,
-                targetArray: [null] // Placeholder, we'll set this directly
+                filePath: new URL(`sounds/end/${manifest.end[0]}`, window.location.origin + baseUrl).href,
+                targetArray: [null] // We'll handle this specially
             });
-        }
-        
-        if (manifest.tab && manifest.tab.length > 0) {
-            priorityFiles.push({
-                type: 'tab',
-                index: 0,
-                filePath: new URL(`sounds/tab/${manifest.tab[0]}`, window.location.origin + baseUrl).href,
-                targetArray: tabAudios
-            });
-            
-            // Queue the rest for background loading
-            for (let i = 1; i < manifest.tab.length; i++) {
-                nonPriorityFiles.push({
-                    type: 'tab',
-                    index: i,
-                    filePath: new URL(`sounds/tab/${manifest.tab[i]}`, window.location.origin + baseUrl).href,
-                    targetArray: tabAudios
-                });
-            }
         }
         
         // Success audio
@@ -1255,30 +1326,6 @@ async function loadSounds() {
                 filePath: new URL(`sounds/success/${manifest.success[0]}`, window.location.origin + baseUrl).href,
                 targetArray: [null] // Placeholder, we'll set this directly
             });
-        }
-        
-        // Leave audios
-        if (manifest.leave && manifest.leave.length > 0) {
-            for (let i = 0; i < manifest.leave.length; i++) {
-                nonPriorityFiles.push({
-                    type: 'leave',
-                    index: i,
-                    filePath: new URL(`sounds/leave/${manifest.leave[i]}`, window.location.origin + baseUrl).href,
-                    targetArray: leaveAudios
-                });
-            }
-        }
-        
-        // Start experience audios
-        if (manifest.startexperiencealt && manifest.startexperiencealt.length > 0) {
-            for (let i = 0; i < manifest.startexperiencealt.length; i++) {
-                nonPriorityFiles.push({
-                    type: 'startexperiencealt',
-                    index: i,
-                    filePath: new URL(`sounds/startexperiencealt/${manifest.startexperiencealt[i]}`, window.location.origin + baseUrl).href,
-                    targetArray: startExperienceAudios
-                });
-            }
         }
         
         // Paywall audios (load only when needed)
@@ -1321,6 +1368,16 @@ async function loadSounds() {
                     successAudio.load();
                     loadedAudioCount++;
                     console.log('Loaded success audio successfully');
+                } else if (item.type === 'end') {
+                    // Preload end audio but we'll create a new Audio object when we need it
+                    const endAudio = new Audio();
+                    endAudio.src = item.filePath;
+                    await new Promise((resolve, reject) => {
+                        endAudio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        endAudio.addEventListener('error', (e) => reject(new Error(`Failed to load end audio`)), { once: true });
+                    });
+                    loadedAudioCount++;
+                    console.log('Loaded end audio successfully');
                 } else {
                     await loadAudioFile(item);
                 }

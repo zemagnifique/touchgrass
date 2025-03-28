@@ -621,7 +621,7 @@ export class FluffyGrass {
 		console.log(`Portal created at position (${PORTAL_CONFIG.position.x}, ${PORTAL_CONFIG.position.y}, ${PORTAL_CONFIG.position.z})`);
 	}
 
-	// Update handleClick to detect double clicks in the sky instead of portal clicks
+	// Update handleClick to check for end condition
 	private handleClick(event: MouseEvent) {
 		const canvas = this.canvas;
 		const rect = canvas.getBoundingClientRect();
@@ -682,14 +682,21 @@ export class FluffyGrass {
 
 		// Check if all touches are done and if end reward hasn't been shown yet
 		if (this.allTouchesDone) {
-			// Play end.mp3
+			// Play end.mp3 and wait for it to finish before showing reward
 			const endAudio = new Audio('sounds/end/end.mp3');
-			endAudio.play().catch(error => {
-				console.error('Error playing end audio:', error);
+			
+			// Set up listener to show reward popup after audio finishes
+			endAudio.addEventListener('ended', () => {
+				console.log('End audio finished, showing reward popup');
+				this.showEndReward();
 			});
 			
-			// Show reward popup
-			this.showEndReward();
+			// Play the audio
+			endAudio.play().catch(error => {
+				console.error('Error playing end audio:', error);
+				// If audio fails to play, still show the reward
+				this.showEndReward();
+			});
 			
 			// Reset flag so it only shows once
 			this.allTouchesDone = false;
