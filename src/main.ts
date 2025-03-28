@@ -864,8 +864,8 @@ export class FluffyGrass {
 		
 		// Set pink colors
 		this.grassMaterial.uniforms.baseColor.value = new THREE.Color(0.8, 0.4, 0.6); // Pink base
-		this.grassMaterial.uniforms.tipColor1.value = new THREE.Color(1.0, 0.6, 0.8); // Light pink tips
-		this.grassMaterial.uniforms.tipColor2.value = new THREE.Color(0.9, 0.5, 0.7); // Medium pink tips
+		this.grassMaterial.uniforms.tipColor1.value = new THREE.Color(0xeb44e5); // Light pink tips
+		this.grassMaterial.uniforms.tipColor2.value = new THREE.Color(0xe60fd8); // Medium pink tips
 		
 		console.log('Grass turned pink! Reverting in 5 seconds...');
 		
@@ -890,9 +890,12 @@ export class FluffyGrass {
 		}
 		
 		// Set gold colors
-		this.grassMaterial.uniforms.baseColor.value = new THREE.Color(0.85, 0.7, 0.2); // Gold base
-		this.grassMaterial.uniforms.tipColor1.value = new THREE.Color(1.0, 0.9, 0.3); // Bright gold tips
-		this.grassMaterial.uniforms.tipColor2.value = new THREE.Color(0.9, 0.8, 0.2); // Deep gold tips
+		this.grassMaterial.uniforms.baseColor.value = new THREE.Color(0xc96a21);
+		this.grassMaterial.uniforms.tipColor1.value = new THREE.Color(0xc7bc10);
+		this.grassMaterial.uniforms.tipColor2.value = new THREE.Color(0xfa9802);
+		// this.grassMaterial.uniforms.baseColor.value = new THREE.Color(0.85, 0.7, 0.2); // Gold base
+		// this.grassMaterial.uniforms.tipColor1.value = new THREE.Color(1.0, 0.9, 0.3); // Bright gold tips
+		// this.grassMaterial.uniforms.tipColor2.value = new THREE.Color(0.9, 0.8, 0.2); // Deep gold tips
 		
 		console.log('Grass turned to gold! Reverting in 10 seconds...');
 		
