@@ -1778,7 +1778,7 @@ function createPaywallUI(threshold) {
         width: ${threshold.amount === 1000 ? '96%' : '100%'};
         height: 100%;
         background-color: #8B4513;
-        background-image: url('${window.location.origin + baseUrl}wall.png'), 
+        background-image: url('${window.location.origin + baseUrl}textures/brick.jpg'), 
             /* Horizontal mortar lines */
             linear-gradient(0deg, rgba(0,0,0,0.2) 2px, transparent 2px),
             /* Vertical mortar lines for even rows */
