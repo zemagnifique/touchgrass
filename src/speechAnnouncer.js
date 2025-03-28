@@ -1276,6 +1276,33 @@ async function loadSounds() {
             }
         }
         
+        // Add startexperiencealt audio - Make sure this is always loaded
+        if (manifest.startexperiencealt && manifest.startexperiencealt.length > 0) {
+            console.log('Loading startexperiencealt audio files...');
+            for (let i = 0; i < manifest.startexperiencealt.length; i++) {
+                priorityFiles.push({
+                    type: 'startexperiencealt',
+                    index: i,
+                    filePath: new URL(`sounds/startexperiencealt/${manifest.startexperiencealt[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: startExperienceAudios
+                });
+                console.log(`Added startexperiencealt audio ${i} to priority files`);
+            }
+        }
+        
+        // Add leave audio
+        if (manifest.leave && manifest.leave.length > 0) {
+            console.log('Loading leave audio files...');
+            for (let i = 0; i < manifest.leave.length; i++) {
+                nonPriorityFiles.push({
+                    type: 'leave',
+                    index: i,
+                    filePath: new URL(`sounds/leave/${manifest.leave[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: leaveAudios
+                });
+            }
+        }
+        
         // Always load mute audio since it's essential
         if (manifest.mute && manifest.mute.length > 0) {
             priorityFiles.push({
@@ -1987,6 +2014,32 @@ async function playStartExperienceAlt() {
         // Get a random start experience audio
         const audioIndex = Math.floor(Math.random() * startExperienceAudios.length);
         currentAudio = startExperienceAudios[audioIndex];
+        
+        // Check if the audio is null or undefined before trying to use it
+        if (!currentAudio) {
+            console.warn(`Start experience audio at index ${audioIndex} is null or not loaded yet`);
+            
+            // Try to find any valid audio in the array
+            let validAudioIndex = -1;
+            for (let i = 0; i < startExperienceAudios.length; i++) {
+                if (startExperienceAudios[i]) {
+                    validAudioIndex = i;
+                    currentAudio = startExperienceAudios[i];
+                    console.log(`Found valid start experience audio at index ${i} instead`);
+                    break;
+                }
+            }
+            
+            // If no valid audio found, fall back to default audio
+            if (validAudioIndex === -1) {
+                console.warn('No valid start experience audio found, falling back to default audio');
+                audioPlaying = false;
+                playNextAppropriateAudio();
+                return;
+            }
+        }
+        
+        // Now we can safely set the currentTime
         currentAudio.currentTime = 0;
         
         const playPromise = new Promise(resolve => {
@@ -2010,6 +2063,9 @@ async function playStartExperienceAlt() {
         console.error('Failed to play start experience alt audio:', error);
         audioPlaying = false;
         lastAudioEndTime = Date.now();
+        
+        // Try to play next appropriate audio as fallback
+        playNextAppropriateAudio();
     }
 }
 
