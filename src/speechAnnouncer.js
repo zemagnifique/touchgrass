@@ -76,6 +76,14 @@ let isFirstLoad = true;
 let lastAudioEndTime = 0;
 let audioPlaying = false;
 
+// Add state tracking for progressive loading
+let priorityLoadingComplete = false;
+let backgroundLoadingInProgress = false;
+let audioBatchSize = 3; // Number of audio files to load in each batch
+let audioLoadQueue = []; // Queue of audio files to load
+let loadedAudioCount = 0; // Counter for loaded audio files
+let totalAudioCount = 0; // Total number of audio files to load
+
 // Add new state variable for tracking if we're in a tab
 let isInTab = false;
 
@@ -717,6 +725,9 @@ async function playTouchAudio() {
         playedTouchAudios.add(audioIndex);
         saveState();
         
+        // Continue loading more audio files in the background
+        checkAndLoadMoreAudio();
+        
         // Wait for the audio to finish
         await playPromise;
         
@@ -1044,6 +1055,12 @@ function createTwitterLink() {
 
 async function loadSounds() {
     try {
+        // Reset loading state
+        loadedAudioCount = 0;
+        totalAudioCount = 0;
+        priorityLoadingComplete = false;
+        audioLoadQueue = [];
+        
         // Load saved state
         loadState();
         
@@ -1059,336 +1076,306 @@ async function loadSounds() {
         const manifest = await response.json();
         console.log('Manifest loaded:', manifest);
         
-        // Load intro audio files if available
+        // Initialize arrays
+        introAudios = Array(manifest.intro?.length || 0).fill(null);
+        defaultAudios = Array(manifest.default?.length || 0).fill(null);
+        touchAudios = Array(manifest.touch?.length || 0).fill(null);
+        skyTouchAudios = Array(manifest.sky_touch?.length || 0).fill(null);
+        tabAudios = Array(manifest.tab?.length || 0).fill(null);
+        leaveAudios = Array(manifest.leave?.length || 0).fill(null);
+        portalAudios = Array(manifest.portal?.length || 0).fill(null);
+        startExperienceAudios = Array(manifest.startexperiencealt?.length || 0).fill(null);
+        
+        // Build a list of all files to load
+        const priorityFiles = [];
+        const nonPriorityFiles = [];
+        
+        // PRIORITY 1: Essential intro and default audios (just the first few)
         if (manifest.intro && manifest.intro.length > 0) {
-            introAudios = [];
-            for (let i = 0; i < manifest.intro.length; i++) {
-                try {
-                    const file = manifest.intro[i];
-                    const audio = new Audio();
-                    audio.src = new URL(`sounds/intro/${file}`, window.location.origin + baseUrl).href;
-                    
-                    const loadPromise = new Promise((resolve, reject) => {
-                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load intro audio ${file}`)), { once: true });
-                        setTimeout(() => reject(new Error(`Timeout loading intro audio ${file}`)), 10000);
-                    });
-                    
-                    audio.load();
-                    await loadPromise;
-                    introAudios[i] = audio;
-                    console.log(`Loaded intro audio ${i}: ${file}`);
-                } catch (error) {
-                    console.error(`Failed to load intro audio file at index ${i}:`, error);
-                    introAudios[i] = null;
-                }
+            const initialCount = Math.min(2, manifest.intro.length);
+            for (let i = 0; i < initialCount; i++) {
+                priorityFiles.push({
+                    type: 'intro',
+                    index: i,
+                    filePath: new URL(`sounds/intro/${manifest.intro[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: introAudios
+                });
             }
-            console.log(`Loaded ${introAudios.filter(a => a !== null).length}/${introAudios.length} intro audio files`);
+            
+            // Queue the rest for background loading
+            for (let i = initialCount; i < manifest.intro.length; i++) {
+                nonPriorityFiles.push({
+                    type: 'intro',
+                    index: i,
+                    filePath: new URL(`sounds/intro/${manifest.intro[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: introAudios
+                });
+            }
         }
         
-        // Load default audio files if available
+        // PRIORITY 2: First few default audios
         if (manifest.default && manifest.default.length > 0) {
-            defaultAudios = [];
-            for (let i = 0; i < manifest.default.length; i++) {
-                try {
-                    const file = manifest.default[i];
-                    const audio = new Audio();
-                    audio.src = new URL(`sounds/default/${file}`, window.location.origin + baseUrl).href;
-                    
-                    const loadPromise = new Promise((resolve, reject) => {
-                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load default audio ${file}`)), { once: true });
-                        setTimeout(() => reject(new Error(`Timeout loading default audio ${file}`)), 10000);
-                    });
-                    
-                    audio.load();
-                    await loadPromise;
-                    defaultAudios[i] = audio;
-                    console.log(`Loaded default audio ${i}: ${file}`);
-                } catch (error) {
-                    console.error(`Failed to load default audio file at index ${i}:`, error);
-                    defaultAudios[i] = null;
-                }
+            const initialCount = Math.min(2, manifest.default.length);
+            for (let i = 0; i < initialCount; i++) {
+                priorityFiles.push({
+                    type: 'default',
+                    index: i,
+                    filePath: new URL(`sounds/default/${manifest.default[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: defaultAudios
+                });
             }
-            console.log(`Loaded ${defaultAudios.filter(a => a !== null).length}/${defaultAudios.length} default audio files`);
+            
+            // Queue the rest for background loading
+            for (let i = initialCount; i < manifest.default.length; i++) {
+                nonPriorityFiles.push({
+                    type: 'default',
+                    index: i,
+                    filePath: new URL(`sounds/default/${manifest.default[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: defaultAudios
+                });
+            }
         }
         
-        // Load touch audio files if available
+        // PRIORITY 3: First touch/sky touch audio
         if (manifest.touch && manifest.touch.length > 0) {
-            touchAudios = [];
-            for (let i = 0; i < manifest.touch.length; i++) {
-                try {
-                    const file = manifest.touch[i];
-                    const audio = new Audio();
-                    audio.src = new URL(`sounds/touch/${file}`, window.location.origin + baseUrl).href;
-                    
-                    const loadPromise = new Promise((resolve, reject) => {
-                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load touch audio ${file}`)), { once: true });
-                        setTimeout(() => reject(new Error(`Timeout loading touch audio ${file}`)), 10000);
-                    });
-                    
-                    audio.load();
-                    await loadPromise;
-                    touchAudios[i] = audio;
-                    console.log(`Loaded touch audio ${i}: ${file}`);
-                } catch (error) {
-                    console.error(`Failed to load touch audio file at index ${i}:`, error);
-                    touchAudios[i] = null;
-                }
+            priorityFiles.push({
+                type: 'touch',
+                index: 0,
+                filePath: new URL(`sounds/touch/${manifest.touch[0]}`, window.location.origin + baseUrl).href,
+                targetArray: touchAudios
+            });
+            
+            // Queue the rest for background loading
+            for (let i = 1; i < manifest.touch.length; i++) {
+                nonPriorityFiles.push({
+                    type: 'touch',
+                    index: i,
+                    filePath: new URL(`sounds/touch/${manifest.touch[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: touchAudios
+                });
             }
-            console.log(`Loaded ${touchAudios.filter(a => a !== null).length}/${touchAudios.length} touch audio files`);
         }
         
-        // Load reload audio files if available
-        if (manifest.reload && manifest.reload.length > 0) {
-            reloadAudios = [];
-            for (let i = 0; i < manifest.reload.length; i++) {
-                try {
-                    const file = manifest.reload[i];
-                    const audio = new Audio();
-                    audio.src = new URL(`sounds/reload/${file}`, window.location.origin + baseUrl).href;
-                    
-                    const loadPromise = new Promise((resolve, reject) => {
-                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load reload audio ${file}`)), { once: true });
-                        setTimeout(() => reject(new Error(`Timeout loading reload audio ${file}`)), 10000);
-                    });
-                    
-                    audio.load();
-                    await loadPromise;
-                    reloadAudios[i] = audio;
-                    console.log(`Loaded reload audio ${i}: ${file}`);
-                } catch (error) {
-                    console.error(`Failed to load reload audio file at index ${i}:`, error);
-                    reloadAudios[i] = null;
-                }
-            }
-            console.log(`Loaded ${reloadAudios.filter(a => a !== null).length}/${reloadAudios.length} reload audio files`);
-        }
-        
-        // Load sky touch audio files if available
         if (manifest.sky_touch && manifest.sky_touch.length > 0) {
-            skyTouchAudios = [];
-            for (let i = 0; i < manifest.sky_touch.length; i++) {
-                try {
-                    const file = manifest.sky_touch[i];
-                    const audio = new Audio();
-                    audio.src = new URL(`sounds/sky_touch/${file}`, window.location.origin + baseUrl).href;
-                    
-                    const loadPromise = new Promise((resolve, reject) => {
-                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load sky touch audio ${file}`)), { once: true });
-                        setTimeout(() => reject(new Error(`Timeout loading sky touch audio ${file}`)), 10000);
-                    });
-                    
-                    audio.load();
-                    await loadPromise;
-                    skyTouchAudios[i] = audio;
-                    console.log(`Loaded sky touch audio ${i}: ${file}`);
-                } catch (error) {
-                    console.error(`Failed to load sky touch audio file at index ${i}:`, error);
-                    skyTouchAudios[i] = null;
-                }
+            priorityFiles.push({
+                type: 'sky_touch',
+                index: 0,
+                filePath: new URL(`sounds/sky_touch/${manifest.sky_touch[0]}`, window.location.origin + baseUrl).href,
+                targetArray: skyTouchAudios
+            });
+            
+            // Queue the rest for background loading
+            for (let i = 1; i < manifest.sky_touch.length; i++) {
+                nonPriorityFiles.push({
+                    type: 'sky_touch',
+                    index: i,
+                    filePath: new URL(`sounds/sky_touch/${manifest.sky_touch[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: skyTouchAudios
+                });
             }
-            console.log(`Loaded ${skyTouchAudios.filter(a => a !== null).length}/${skyTouchAudios.length} sky touch audio files`);
         }
         
-        // Load tab audio files if available
-        if (manifest.tab && manifest.tab.length > 0) {
-            tabAudios = [];
-            for (let i = 0; i < manifest.tab.length; i++) {
-                try {
-                    const file = manifest.tab[i];
-                    const audio = new Audio();
-                    audio.src = new URL(`sounds/tab/${file}`, window.location.origin + baseUrl).href;
-                    
-                    const loadPromise = new Promise((resolve, reject) => {
-                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load tab audio ${file}`)), { once: true });
-                        setTimeout(() => reject(new Error(`Timeout loading tab audio ${file}`)), 10000);
-                    });
-                    
-                    audio.load();
-                    await loadPromise;
-                    tabAudios[i] = audio;
-                    console.log(`Loaded tab audio ${i}: ${file}`);
-                } catch (error) {
-                    console.error(`Failed to load tab audio file at index ${i}:`, error);
-                    tabAudios[i] = null;
-                }
-            }
-            console.log(`Loaded ${tabAudios.filter(a => a !== null).length}/${tabAudios.length} tab audio files`);
-        }
-        
-        // Load leave audio files if available
-        if (manifest.leave && manifest.leave.length > 0) {
-            leaveAudios = [];
-            for (let i = 0; i < manifest.leave.length; i++) {
-                try {
-                    const file = manifest.leave[i];
-                    const audio = new Audio();
-                    audio.src = new URL(`sounds/leave/${file}`, window.location.origin + baseUrl).href;
-                    
-                    const loadPromise = new Promise((resolve, reject) => {
-                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load leave audio ${file}`)), { once: true });
-                        setTimeout(() => reject(new Error(`Timeout loading leave audio ${file}`)), 10000);
-                    });
-                    
-                    audio.load();
-                    await loadPromise;
-                    leaveAudios[i] = audio;
-                    console.log(`Loaded leave audio ${i}: ${file}`);
-                } catch (error) {
-                    console.error(`Failed to load leave audio file at index ${i}:`, error);
-                    leaveAudios[i] = null;
-                }
-            }
-            console.log(`Loaded ${leaveAudios.filter(a => a !== null).length}/${leaveAudios.length} leave audio files`);
-        }
-        
-        // Load portal audio files if available
+        // PRIORITY 4: First portal audio (for initial portal click)
         if (manifest.portal && manifest.portal.length > 0) {
-            portalAudios = [];
-            for (let i = 0; i < manifest.portal.length; i++) {
-                try {
-                    const file = manifest.portal[i];
-                    const audio = new Audio();
-                    audio.src = new URL(`sounds/portal/${file}`, window.location.origin + baseUrl).href;
-                    
-                    const loadPromise = new Promise((resolve, reject) => {
-                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load portal audio ${file}`)), { once: true });
-                        setTimeout(() => reject(new Error(`Timeout loading portal audio ${file}`)), 10000);
-                    });
-                    
-                    audio.load();
-                    await loadPromise;
-                    portalAudios[i] = audio;
-                    console.log(`Loaded portal audio ${i}: ${file}`);
-                } catch (error) {
-                    console.error(`Failed to load portal audio file at index ${i}:`, error);
-                    portalAudios[i] = null;
-                }
+            priorityFiles.push({
+                type: 'portal',
+                index: 0,
+                filePath: new URL(`sounds/portal/${manifest.portal[0]}`, window.location.origin + baseUrl).href,
+                targetArray: portalAudios
+            });
+            
+            // Queue the rest for background loading
+            for (let i = 1; i < manifest.portal.length; i++) {
+                nonPriorityFiles.push({
+                    type: 'portal',
+                    index: i,
+                    filePath: new URL(`sounds/portal/${manifest.portal[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: portalAudios
+                });
             }
-            console.log(`Loaded ${portalAudios.filter(a => a !== null).length}/${portalAudios.length} portal audio files`);
         }
         
-        // Load mute audio if available
+        // PRIORITY 5: Mute and tab audio
         if (manifest.mute && manifest.mute.length > 0) {
-            try {
-                muteAudio = new Audio();
-                muteAudio.src = new URL(`sounds/mute/${manifest.mute[0]}`, window.location.origin + baseUrl).href;
-                
-                const muteLoadPromise = new Promise((resolve, reject) => {
-                    muteAudio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                    muteAudio.addEventListener('error', (e) => reject(new Error(`Failed to load mute audio`)), { once: true });
+            priorityFiles.push({
+                type: 'mute',
+                index: 0,
+                filePath: new URL(`sounds/mute/${manifest.mute[0]}`, window.location.origin + baseUrl).href,
+                targetArray: [null] // Placeholder, we'll set this directly
+            });
+        }
+        
+        if (manifest.tab && manifest.tab.length > 0) {
+            priorityFiles.push({
+                type: 'tab',
+                index: 0,
+                filePath: new URL(`sounds/tab/${manifest.tab[0]}`, window.location.origin + baseUrl).href,
+                targetArray: tabAudios
+            });
+            
+            // Queue the rest for background loading
+            for (let i = 1; i < manifest.tab.length; i++) {
+                nonPriorityFiles.push({
+                    type: 'tab',
+                    index: i,
+                    filePath: new URL(`sounds/tab/${manifest.tab[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: tabAudios
                 });
-                
-                muteAudio.load();
-                await muteLoadPromise;
-                console.log('Loaded mute audio successfully');
-            } catch (error) {
-                console.error('Failed to load mute audio:', error);
-                muteAudio = null;
             }
         }
         
-        // Load success audio if available
+        // Success audio
         if (manifest.success && manifest.success.length > 0) {
-            try {
-                successAudio = new Audio();
-                successAudio.src = new URL(`sounds/success/${manifest.success[0]}`, window.location.origin + baseUrl).href;
-                
-                const successLoadPromise = new Promise((resolve, reject) => {
-                    successAudio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                    successAudio.addEventListener('error', (e) => reject(new Error(`Failed to load success audio`)), { once: true });
+            nonPriorityFiles.push({
+                type: 'success',
+                index: 0,
+                filePath: new URL(`sounds/success/${manifest.success[0]}`, window.location.origin + baseUrl).href,
+                targetArray: [null] // Placeholder, we'll set this directly
+            });
+        }
+        
+        // Leave audios
+        if (manifest.leave && manifest.leave.length > 0) {
+            for (let i = 0; i < manifest.leave.length; i++) {
+                nonPriorityFiles.push({
+                    type: 'leave',
+                    index: i,
+                    filePath: new URL(`sounds/leave/${manifest.leave[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: leaveAudios
                 });
-                
-                successAudio.load();
-                await successLoadPromise;
-                console.log('Loaded success audio successfully');
-            } catch (error) {
-                console.error('Failed to load success audio:', error);
-                successAudio = null;
             }
         }
         
-        // Load start experience audio files if available
+        // Start experience audios
         if (manifest.startexperiencealt && manifest.startexperiencealt.length > 0) {
-            startExperienceAudios = [];
             for (let i = 0; i < manifest.startexperiencealt.length; i++) {
-                try {
-                    const file = manifest.startexperiencealt[i];
-                    const audio = new Audio();
-                    audio.src = new URL(`sounds/startexperiencealt/${file}`, window.location.origin + baseUrl).href;
-                    
-                    const loadPromise = new Promise((resolve, reject) => {
-                        audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                        audio.addEventListener('error', (e) => reject(new Error(`Failed to load start experience alt audio ${file}`)), { once: true });
-                        setTimeout(() => reject(new Error(`Timeout loading start experience alt audio ${file}`)), 10000);
-                    });
-                    
-                    audio.load();
-                    await loadPromise;
-                    startExperienceAudios[i] = audio;
-                    console.log(`Loaded start experience alt audio ${i}: ${file}`);
-                } catch (error) {
-                    console.error(`Failed to load start experience alt audio file at index ${i}:`, error);
-                    startExperienceAudios[i] = null;
-                }
+                nonPriorityFiles.push({
+                    type: 'startexperiencealt',
+                    index: i,
+                    filePath: new URL(`sounds/startexperiencealt/${manifest.startexperiencealt[i]}`, window.location.origin + baseUrl).href,
+                    targetArray: startExperienceAudios
+                });
             }
-            console.log(`Loaded ${startExperienceAudios.filter(a => a !== null).length}/${startExperienceAudios.length} start experience alt audio files`);
         }
         
-        // Load paywall audio files if available
+        // Paywall audios (load only when needed)
         if (manifest.paywall) {
             paywallAudios = {};
             const amounts = ['2', '5', '10', '1000'];
-            const messageTypes = ['initial', 'hover1', 'hover2', 'hover3', 'grassClick', 'payClick', 'paySuccess', 'payCancel'];
             
-            for (const amount of amounts) {
+            amounts.forEach(amount => {
                 if (manifest.paywall[amount]) {
                     paywallAudios[amount] = {};
-                    for (const type of messageTypes) {
-                        if (manifest.paywall[amount][type]) {
-                            try {
-                                const audio = new Audio();
-                                audio.src = new URL(`sounds/paywall/${amount}/${manifest.paywall[amount][type]}`, window.location.origin + baseUrl).href;
-                                
-                                const loadPromise = new Promise((resolve, reject) => {
-                                    audio.addEventListener('canplaythrough', () => resolve(), { once: true });
-                                    audio.addEventListener('error', (e) => reject(new Error(`Failed to load paywall audio ${amount}/${type}`)), { once: true });
-                                    setTimeout(() => reject(new Error(`Timeout loading paywall audio ${amount}/${type}`)), 10000);
-                                });
-                                
-                                audio.load();
-                                await loadPromise;
-                                paywallAudios[amount][type] = audio;
-                                console.log(`Loaded paywall audio ${amount}/${type}`);
-                            } catch (error) {
-                                console.error(`Failed to load paywall audio ${amount}/${type}:`, error);
-                                paywallAudios[amount][type] = null;
-                            }
-                        }
-                    }
+                    // We'll load these on demand
                 }
-            }
-            console.log('Loaded paywall audio files');
+            });
         }
         
-        soundsLoaded = introAudios.length > 0 || defaultAudios.length > 0 || touchAudios.length > 0 || 
-                      skyTouchAudios.length > 0 || tabAudios.length > 0 || leaveAudios.length > 0 || 
-                      portalAudios.length > 0;
-                      
-        // Notify FluffyGrass that audio loading is complete
-        notifyLoadingComplete(soundsLoaded);
-        return soundsLoaded;
+        // Set the total audio count
+        totalAudioCount = priorityFiles.length + nonPriorityFiles.length;
+        console.log(`Total audio files to load: ${totalAudioCount} (${priorityFiles.length} priority, ${nonPriorityFiles.length} non-priority)`);
+        
+        // Load priority files first
+        for (const item of priorityFiles) {
+            try {
+                if (item.type === 'mute') {
+                    muteAudio = new Audio();
+                    muteAudio.src = item.filePath;
+                    await new Promise((resolve, reject) => {
+                        muteAudio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        muteAudio.addEventListener('error', (e) => reject(new Error(`Failed to load mute audio`)), { once: true });
+                    });
+                    muteAudio.load();
+                    loadedAudioCount++;
+                    console.log('Loaded mute audio successfully');
+                } else if (item.type === 'success') {
+                    successAudio = new Audio();
+                    successAudio.src = item.filePath;
+                    await new Promise((resolve, reject) => {
+                        successAudio.addEventListener('canplaythrough', () => resolve(), { once: true });
+                        successAudio.addEventListener('error', (e) => reject(new Error(`Failed to load success audio`)), { once: true });
+                    });
+                    successAudio.load();
+                    loadedAudioCount++;
+                    console.log('Loaded success audio successfully');
+                } else {
+                    await loadAudioFile(item);
+                }
+            } catch (error) {
+                console.error(`Failed to load priority audio file: ${item.type} ${item.index}`, error);
+            }
+        }
+        
+        // Queue non-priority files for background loading
+        audioLoadQueue = nonPriorityFiles;
+        
+        // Start background loading
+        priorityLoadingComplete = true;
+        soundsLoaded = true;
+        
+        // Notify completion for the initial loading
+        notifyLoadingComplete(true);
+        
+        // Start loading more audio in the background
+        setTimeout(() => loadAudioBatch(), 1000);
+        
+        return true;
     } catch (error) {
         console.error('Error loading sounds:', error);
         soundsLoaded = false;
         notifyLoadingComplete(false);
+        return false;
+    }
+}
+
+// Add a load on demand function for paywall audio
+async function loadPaywallAudio(amount, type) {
+    // Check if this audio is already loaded
+    if (paywallAudios[amount] && paywallAudios[amount][type]) {
+        return true;
+    }
+    
+    try {
+        console.log(`Loading paywall audio on demand: ${amount}/${type}`);
+        const manifestUrl = new URL('sounds/manifest.json', window.location.origin + baseUrl);
+        const response = await fetch(manifestUrl);
+        
+        if (!response.ok) {
+            console.error(`Failed to load manifest for paywall audio: ${response.status}`);
+            return false;
+        }
+        
+        const manifest = await response.json();
+        
+        if (!manifest.paywall || !manifest.paywall[amount] || !manifest.paywall[amount][type]) {
+            console.error(`Paywall audio not found in manifest: ${amount}/${type}`);
+            return false;
+        }
+        
+        // Ensure the amount object exists
+        if (!paywallAudios[amount]) {
+            paywallAudios[amount] = {};
+        }
+        
+        // Load the audio
+        const audio = new Audio();
+        audio.src = new URL(`sounds/paywall/${amount}/${manifest.paywall[amount][type]}`, window.location.origin + baseUrl).href;
+        
+        const loadPromise = new Promise((resolve, reject) => {
+            audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+            audio.addEventListener('error', (e) => reject(new Error(`Failed to load paywall audio ${amount}/${type}`)), { once: true });
+            setTimeout(() => reject(new Error(`Timeout loading paywall audio ${amount}/${type}`)), 10000);
+        });
+        
+        audio.load();
+        await loadPromise;
+        
+        paywallAudios[amount][type] = audio;
+        console.log(`Successfully loaded paywall audio ${amount}/${type}`);
+        
+        return true;
+    } catch (error) {
+        console.error(`Failed to load paywall audio ${amount}/${type}:`, error);
         return false;
     }
 }
@@ -1408,6 +1395,69 @@ function notifyLoadingComplete(success) {
                 console.error('FluffyGrass still not available after delay, loading screen may be stuck');
             }
         }, 2000);
+    }
+}
+
+// New function to handle progressive loading of audio files
+async function loadAudioBatch() {
+    if (audioLoadQueue.length === 0 || backgroundLoadingInProgress) {
+        return;
+    }
+
+    backgroundLoadingInProgress = true;
+    console.log(`Starting to load next audio batch (${Math.min(audioBatchSize, audioLoadQueue.length)} files)`);
+
+    // Take the next batch of audio files to load
+    const batch = audioLoadQueue.splice(0, audioBatchSize);
+    
+    // Load all files in the batch concurrently
+    await Promise.allSettled(batch.map(item => loadAudioFile(item)));
+    
+    backgroundLoadingInProgress = false;
+    console.log(`Batch loading complete. ${audioLoadQueue.length} files remaining in queue`);
+    
+    // If there are more files to load, schedule the next batch
+    if (audioLoadQueue.length > 0) {
+        setTimeout(() => loadAudioBatch(), 1000);
+    }
+}
+
+// Helper function to load a single audio file
+async function loadAudioFile(item) {
+    const { type, index, filePath, targetArray } = item;
+    
+    try {
+        const audio = new Audio();
+        audio.src = filePath;
+        
+        const loadPromise = new Promise((resolve, reject) => {
+            audio.addEventListener('canplaythrough', () => resolve(), { once: true });
+            audio.addEventListener('error', (e) => reject(new Error(`Failed to load ${type} audio ${index}`)), { once: true });
+            setTimeout(() => reject(new Error(`Timeout loading ${type} audio ${index}`)), 20000);
+        });
+        
+        audio.load();
+        await loadPromise;
+        
+        targetArray[index] = audio;
+        loadedAudioCount++;
+        
+        const percentage = totalAudioCount > 0 ? Math.floor((loadedAudioCount / totalAudioCount) * 100) : 0;
+        console.log(`Loaded ${type} audio ${index}: ${filePath} (${loadedAudioCount}/${totalAudioCount}, ${percentage}%)`);
+        
+        return true;
+    } catch (error) {
+        console.error(`Failed to load ${type} audio file at index ${index}:`, error);
+        targetArray[index] = null;
+        loadedAudioCount++;
+        return false;
+    }
+}
+
+// New function to check if more audio should be loaded
+function checkAndLoadMoreAudio() {
+    if (audioPlaying && !backgroundLoadingInProgress && audioLoadQueue.length > 0) {
+        loadAudioBatch();
     }
 }
 
@@ -2239,9 +2289,13 @@ async function handlePayment(threshold) {
 
 // Function to play paywall audio
 async function playPaywallAudio(amount, type, name = '') {
+    // If the audio isn't loaded yet, load it first
     if (!paywallAudios[amount] || !paywallAudios[amount][type]) {
-        console.log(`No paywall audio found for ${amount}/${type}`);
-        return;
+        const success = await loadPaywallAudio(amount, type);
+        if (!success) {
+            console.log(`Failed to load paywall audio ${amount}/${type}`);
+            return;
+        }
     }
 
     try {
@@ -2272,6 +2326,17 @@ async function playPaywallAudio(amount, type, name = '') {
 
         console.log(`Playing paywall audio ${amount}/${type}`);
         await currentAudio.play();
+        
+        // Start preloading other paywall audio for this amount
+        const messageTypes = ['initial', 'hover1', 'hover2', 'hover3', 'grassClick', 'payClick', 'paySuccess', 'payCancel'];
+        for (const nextType of messageTypes) {
+            if (nextType !== type && (!paywallAudios[amount] || !paywallAudios[amount][nextType])) {
+                // Load this audio file in the background
+                loadPaywallAudio(amount, nextType).catch(error => 
+                    console.error(`Failed to preload paywall audio ${amount}/${nextType}:`, error)
+                );
+            }
+        }
 
         // Wait for the audio to finish
         await playPromise;
