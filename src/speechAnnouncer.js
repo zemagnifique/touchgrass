@@ -1967,12 +1967,12 @@ function createPaywallUI(threshold) {
         grassLink.textContent = "grass";
         grassLink.style.cssText = `
             cursor: pointer;
-            background-image: url('${window.location.origin + baseUrl}textures/grass.png');
-            background-size: cover;
-            background-position: center;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            transition: all 0.3s ease;
+            // background-image: url('${window.location.origin + baseUrl}textures/grass.png');
+            // background-size: cover;
+            // background-position: center;
+            // -webkit-background-clip: text;
+            // -webkit-text-fill-color: transparent;
+            // transition: all 0.3s ease;
         `;
         
         const afterGrass = document.createElement('span');
@@ -1980,15 +1980,15 @@ function createPaywallUI(threshold) {
         
         // Add hover effect
         grassLink.addEventListener('mouseenter', () => {
+            grassLink.style.color = '#4CAF50';
             grassLink.style.filter = 'brightness(1.2)';
             grassLink.style.transform = 'scale(1.1)';
-            grassLink.style.backgroundImage = `url('${window.location.origin + baseUrl}textures/grass.png')`;
         });
         
         grassLink.addEventListener('mouseleave', () => {
+            grassLink.style.color = '#ffffff';
             grassLink.style.filter = 'brightness(1)';
             grassLink.style.transform = 'scale(1)';
-            grassLink.style.backgroundImage = `url('${window.location.origin + baseUrl}textures/grass.png')`;
         });
         
         // Add click handler
