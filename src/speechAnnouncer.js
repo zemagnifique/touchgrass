@@ -2278,10 +2278,20 @@ async function handlePayment(threshold) {
         // Here you would integrate with Stripe or other payment processor
         // For now, we'll just simulate success
         playPaywallAudio(threshold.amount.toString(), 'paySuccess');
+        
+        // Apply gold grass effect for the last paywall
+        if (window.fluffyGrass && typeof window.fluffyGrass.applyPaywallEffect === 'function') {
+            window.fluffyGrass.applyPaywallEffect(threshold.amount);
+        }
     } else {
         // Here you would integrate with Stripe or other payment processor
         // For now, we'll just simulate success
         playPaywallAudio(threshold.amount.toString(), 'paySuccess');
+        
+        // Apply the appropriate visual effect based on payment amount
+        if (window.fluffyGrass && typeof window.fluffyGrass.applyPaywallEffect === 'function') {
+            window.fluffyGrass.applyPaywallEffect(threshold.amount);
+        }
     }
     
     removePaywallUI();

@@ -33,6 +33,15 @@ export class FluffyGrass {
 	private assetsLoaded: boolean = false; // Flag to track 3D assets loading
 	private audioLoaded: boolean = false; // Flag to track audio loading
 	private loadingTimeout: number | null = null; // Timeout for fallback loading completion
+	private isAudioPlaying: boolean = false; // Flag to track if audio is currently playing
+
+	// Original grass properties to restore after effects
+	private originalGrassBaseColor: THREE.Color | null = null;
+	private originalGrassTip1Color: THREE.Color | null = null;
+	private originalGrassTip2Color: THREE.Color | null = null;
+	private originalWindStrength: number = 1.0;
+	private originalWindSpeed: number = 1.0;
+	private effectTimeout: number | null = null;
 
 	private camera: THREE.PerspectiveCamera;
 	private renderer: THREE.WebGLRenderer;
@@ -842,6 +851,129 @@ export class FluffyGrass {
 		console.log('Audio loading complete!');
 		this.audioLoaded = true;
 		this.checkAllResourcesLoaded();
+	}
+
+	// Method to set pink grass after first paywall payment
+	public setPinkGrass() {
+		// Store original colors if not already stored
+		if (!this.originalGrassBaseColor) {
+			this.originalGrassBaseColor = this.grassMaterial.uniforms.baseColor.value.clone();
+			this.originalGrassTip1Color = this.grassMaterial.uniforms.tipColor1.value.clone();
+			this.originalGrassTip2Color = this.grassMaterial.uniforms.tipColor2.value.clone();
+		}
+		
+		// Set pink colors
+		this.grassMaterial.uniforms.baseColor.value = new THREE.Color(0.8, 0.4, 0.6); // Pink base
+		this.grassMaterial.uniforms.tipColor1.value = new THREE.Color(1.0, 0.6, 0.8); // Light pink tips
+		this.grassMaterial.uniforms.tipColor2.value = new THREE.Color(0.9, 0.5, 0.7); // Medium pink tips
+		
+		console.log('Grass turned pink! Reverting in 5 seconds...');
+		
+		// Clear any existing timeout
+		if (this.effectTimeout) {
+			clearTimeout(this.effectTimeout);
+		}
+		
+		// Set timeout to revert after 5 seconds
+		this.effectTimeout = window.setTimeout(() => {
+			this.restoreGrassColor();
+		}, 5000);
+	}
+	
+	// Method to set gold grass after last paywall payment
+	public setGoldGrass() {
+		// Store original colors if not already stored
+		if (!this.originalGrassBaseColor) {
+			this.originalGrassBaseColor = this.grassMaterial.uniforms.baseColor.value.clone();
+			this.originalGrassTip1Color = this.grassMaterial.uniforms.tipColor1.value.clone();
+			this.originalGrassTip2Color = this.grassMaterial.uniforms.tipColor2.value.clone();
+		}
+		
+		// Set gold colors
+		this.grassMaterial.uniforms.baseColor.value = new THREE.Color(0.85, 0.7, 0.2); // Gold base
+		this.grassMaterial.uniforms.tipColor1.value = new THREE.Color(1.0, 0.9, 0.3); // Bright gold tips
+		this.grassMaterial.uniforms.tipColor2.value = new THREE.Color(0.9, 0.8, 0.2); // Deep gold tips
+		
+		console.log('Grass turned to gold! Reverting in 10 seconds...');
+		
+		// Clear any existing timeout
+		if (this.effectTimeout) {
+			clearTimeout(this.effectTimeout);
+		}
+		
+		// Set timeout to revert after 10 seconds
+		this.effectTimeout = window.setTimeout(() => {
+			this.restoreGrassColor();
+		}, 10000);
+	}
+	
+	// Method to increase wind effect for second/third paywall payments
+	public increaseWindEffect() {
+		// Store original wind values if not already stored
+		if (this.grassMaterial.uniforms.windStrength) {
+			this.originalWindStrength = this.grassMaterial.uniforms.windStrength.value;
+			this.originalWindSpeed = this.grassMaterial.uniforms.windSpeed.value;
+		}
+		
+		// Increase wind strength and speed
+		if (this.grassMaterial.uniforms.windStrength) {
+			this.grassMaterial.uniforms.windStrength.value = this.originalWindStrength * 3.0; // Triple wind strength
+			this.grassMaterial.uniforms.windSpeed.value = this.originalWindSpeed * 2.0; // Double wind speed
+		}
+		
+		console.log('Wind effect increased! Reverting in 10 seconds...');
+		
+		// Clear any existing timeout
+		if (this.effectTimeout) {
+			clearTimeout(this.effectTimeout);
+		}
+		
+		// Set timeout to revert after 10 seconds
+		this.effectTimeout = window.setTimeout(() => {
+			this.restoreWindEffect();
+		}, 10000);
+	}
+	
+	// Method to restore original grass color
+	private restoreGrassColor() {
+		if (this.originalGrassBaseColor && this.originalGrassTip1Color && this.originalGrassTip2Color) {
+			this.grassMaterial.uniforms.baseColor.value = this.originalGrassBaseColor;
+			this.grassMaterial.uniforms.tipColor1.value = this.originalGrassTip1Color;
+			this.grassMaterial.uniforms.tipColor2.value = this.originalGrassTip2Color;
+			console.log('Grass color restored to original');
+		}
+	}
+	
+	// Method to restore original wind effect
+	private restoreWindEffect() {
+		if (this.grassMaterial.uniforms.windStrength) {
+			this.grassMaterial.uniforms.windStrength.value = this.originalWindStrength;
+			this.grassMaterial.uniforms.windSpeed.value = this.originalWindSpeed;
+			console.log('Wind effect restored to original');
+		}
+	}
+
+	// Method to handle paywall effects based on payment amount
+	public applyPaywallEffect(amount: number) {
+		console.log(`Applying paywall effect for $${amount} payment`);
+		
+		switch(amount) {
+			case 2:
+				// First paywall: pink grass for 5 seconds
+				this.setPinkGrass();
+				break;
+			case 5:
+			case 10:
+				// Second and third paywalls: increased wind for 10 seconds
+				this.increaseWindEffect();
+				break;
+			case 1000:
+				// Last paywall: gold grass for 10 seconds
+				this.setGoldGrass();
+				break;
+			default:
+				console.log(`No special effect for $${amount} payment`);
+		}
 	}
 }
 

@@ -15,6 +15,8 @@ interface GrassUniformsInterface {
 	grassAlphaTexture?: { value: THREE.Texture };
 	fogColor2?: { value: THREE.Color };
 	fogColor3?: { value: THREE.Color };
+	windStrength?: { value: number };
+	windSpeed?: { value: number };
 }
 export class GrassMaterial {
 	material: THREE.Material;
@@ -37,6 +39,8 @@ export class GrassMaterial {
 		tipColor2: { value: new THREE.Color(this.grassColorProps.tipColor2) },
 		noiseTexture: { value: new THREE.Texture() },
 		grassAlphaTexture: { value: new THREE.Texture() },
+		windStrength: { value: 1.0 },
+		windSpeed: { value: 1.0 },
 	};
 
 	private mergeUniforms(newUniforms?: GrassUniformsInterface) {
@@ -88,6 +92,8 @@ export class GrassMaterial {
 				uGrassAlphaTexture: this.uniforms.grassAlphaTexture,
 				fogColor2: this.uniforms.fogColor2,
 				fogColor3: this.uniforms.fogColor3,
+				uWindStrength: this.uniforms.windStrength,
+				uWindSpeed: this.uniforms.windSpeed,
 			};
 
 			shader.vertexShader = `
@@ -99,6 +105,8 @@ export class GrassMaterial {
       uniform sampler2D uNoiseTexture;
       uniform float uNoiseScale;
       uniform float uTime;
+      uniform float uWindStrength;
+      uniform float uWindSpeed;
       
       varying vec3 vColor;
       varying vec2 vGlobalUV;
@@ -124,11 +132,11 @@ export class GrassMaterial {
 
         // wind effect
         vec2 uWindDirection = vec2(1.0,1.0);
-        float uWindAmp = 0.2;
+        float uWindAmp = 0.2 * uWindStrength;
         float uWindFreq = 50.;
-        float uSpeed = 1.0;
+        float uSpeed = 1.0 * uWindSpeed;
         float uNoiseFactor = 5.50;
-        float uNoiseSpeed = 0.001;
+        float uNoiseSpeed = 0.001 * uWindSpeed;
 
         vec2 windDirection = normalize(uWindDirection); // Normalize the wind direction
         vec4 modelPosition = modelMatrix * instanceMatrix * vec4(position, 1.0);
