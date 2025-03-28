@@ -689,6 +689,10 @@ async function playTouchAudio() {
         // If no suitable audio found, return
         if (audioIndex === -1 || !touchAudios[audioIndex]) {
             console.log('No suitable touch audio found for touch count:', touchCount);
+            
+            // Check if we've played all touch audios
+            checkIfAllTouchesComplete();
+            
             return;
         }
         
@@ -725,6 +729,9 @@ async function playTouchAudio() {
         playedTouchAudios.add(audioIndex);
         saveState();
         
+        // Check if we've played all touch audios
+        checkIfAllTouchesComplete();
+        
         // Continue loading more audio files in the background
         checkAndLoadMoreAudio();
         
@@ -744,6 +751,22 @@ async function playTouchAudio() {
         
         // Schedule the next audio check
         nextAudioTimeoutId = setTimeout(playNextAppropriateAudio, 3000);
+    }
+}
+
+// Function to check if all touch audios have been played
+function checkIfAllTouchesComplete() {
+    // See if we've played all touch audios that are available
+    const allTouchesPlayed = Array.from({ length: touchAudios.length }, (_, i) => i)
+        .every(i => !touchAudios[i] || playedTouchAudios.has(i));
+    
+    if (allTouchesPlayed) {
+        console.log('All touch audios have been played!');
+        
+        // Notify FluffyGrass that all touches are complete
+        if (window.fluffyGrass && typeof window.fluffyGrass.setAllTouchesComplete === 'function') {
+            window.fluffyGrass.setAllTouchesComplete();
+        }
     }
 }
 
@@ -2282,6 +2305,11 @@ async function handlePayment(threshold) {
         // Apply gold grass effect for the last paywall
         if (window.fluffyGrass && typeof window.fluffyGrass.applyPaywallEffect === 'function') {
             window.fluffyGrass.applyPaywallEffect(threshold.amount);
+            
+            // Record payment amount for end reward
+            if (typeof window.fluffyGrass.recordPayment === 'function') {
+                window.fluffyGrass.recordPayment(threshold.amount);
+            }
         }
     } else {
         // Here you would integrate with Stripe or other payment processor
@@ -2291,6 +2319,11 @@ async function handlePayment(threshold) {
         // Apply the appropriate visual effect based on payment amount
         if (window.fluffyGrass && typeof window.fluffyGrass.applyPaywallEffect === 'function') {
             window.fluffyGrass.applyPaywallEffect(threshold.amount);
+            
+            // Record payment amount for end reward
+            if (typeof window.fluffyGrass.recordPayment === 'function') {
+                window.fluffyGrass.recordPayment(threshold.amount);
+            }
         }
     }
     

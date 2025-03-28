@@ -34,6 +34,8 @@ export class FluffyGrass {
 	private audioLoaded: boolean = false; // Flag to track audio loading
 	private loadingTimeout: number | null = null; // Timeout for fallback loading completion
 	private isAudioPlaying: boolean = false; // Flag to track if audio is currently playing
+	private allTouchesDone: boolean = false; // Flag to track if all touch audio has been played
+	private amountPaid: number = 0; // Track the amount the user has paid
 
 	// Original grass properties to restore after effects
 	private originalGrassBaseColor: THREE.Color | null = null;
@@ -77,6 +79,9 @@ export class FluffyGrass {
 	private portalClickCount = 0;
 	private portalAudioFinished = false; // New flag to track audio completion
 	private lastClickTime = 0; // Track time of last click for double click detection
+
+	// Add audio element to play soundtrack
+	private endSoundtrack: HTMLAudioElement | null = null;
 
 	constructor(_canvas: HTMLCanvasElement) {
 		// Create loading screen first, before any asset loading begins
@@ -674,6 +679,23 @@ export class FluffyGrass {
 				}, 100);
 			}
 		}
+
+		// Check if all touches are done and if end reward hasn't been shown yet
+		if (this.allTouchesDone) {
+			// Play end.mp3
+			const endAudio = new Audio('sounds/end/end.mp3');
+			endAudio.play().catch(error => {
+				console.error('Error playing end audio:', error);
+			});
+			
+			// Show reward popup
+			this.showEndReward();
+			
+			// Reset flag so it only shows once
+			this.allTouchesDone = false;
+			
+			return; // Skip other click processing
+		}
 	}
 
 	// Add a method to pulse the portal for visual feedback
@@ -906,6 +928,124 @@ export class FluffyGrass {
 		}
 		
 		// ... rest of animation code ...
+	}
+
+	// Add method to track payment amount
+	public recordPayment(amount: number) {
+		this.amountPaid = amount;
+		console.log(`Payment recorded: $${amount}`);
+	}
+
+	// Add method to mark all touches as completed
+	public setAllTouchesComplete() {
+		this.allTouchesDone = true;
+		console.log('All touch audio completed');
+	}
+
+	// Add method to show end reward popup
+	public showEndReward() {
+		// Create popup container
+		const popup = document.createElement('div');
+		popup.className = 'end-reward-popup';
+		popup.style.cssText = `
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			background-color: rgba(0, 0, 0, 0.8);
+			z-index: 9999;
+		`;
+
+		// Determine which grass image to show based on payment amount
+		let imageSrc = '';
+		if (this.amountPaid === 2) {
+			imageSrc = 'images/pinkgrass.png';
+		} else if (this.amountPaid === 1000) {
+			imageSrc = 'images/goldgrass.png';
+		} else {
+			imageSrc = 'images/greengrass.png';
+		}
+
+		// Create image element
+		const image = document.createElement('img');
+		image.src = imageSrc;
+		image.style.cssText = `
+			max-width: 80%;
+			max-height: 60%;
+			border-radius: 10px;
+			box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+		`;
+
+		// Create title
+		const title = document.createElement('h2');
+		title.textContent = 'Congratulations!';
+		title.style.cssText = `
+			color: white;
+			font-size: 2rem;
+			margin: 1rem 0;
+		`;
+
+		// Create description
+		const description = document.createElement('p');
+		description.textContent = 'You have completed the Grass Touching experience!';
+		description.style.cssText = `
+			color: white;
+			font-size: 1.2rem;
+			margin: 0.5rem 0;
+			text-align: center;
+			max-width: 80%;
+		`;
+
+		// Create close button
+		const closeButton = document.createElement('button');
+		closeButton.textContent = 'Close';
+		closeButton.style.cssText = `
+			background-color: #4CAF50;
+			color: white;
+			border: none;
+			padding: 0.8rem 1.5rem;
+			margin-top: 2rem;
+			border-radius: 5px;
+			font-size: 1.2rem;
+			cursor: pointer;
+		`;
+
+		// Add event listener to close button
+		closeButton.addEventListener('click', () => {
+			// Stop soundtrack if playing
+			if (this.endSoundtrack) {
+				this.endSoundtrack.pause();
+				this.endSoundtrack = null;
+			}
+			document.body.removeChild(popup);
+		});
+
+		// Add elements to popup
+		popup.appendChild(title);
+		popup.appendChild(image);
+		popup.appendChild(description);
+		popup.appendChild(closeButton);
+
+		// Play soundtrack
+		this.playEndSoundtrack();
+
+		// Add popup to document
+		document.body.appendChild(popup);
+	}
+
+	// Add method to play soundtrack
+	private playEndSoundtrack() {
+		this.endSoundtrack = new Audio('sounds/soundtrack/soundtrack.mp3');
+		this.endSoundtrack.loop = true;
+		this.endSoundtrack.volume = 0.7;
+		this.endSoundtrack.play().catch(error => {
+			console.error('Error playing soundtrack:', error);
+		});
 	}
 }
 
